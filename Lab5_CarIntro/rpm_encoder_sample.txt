@@ -1,0 +1,32 @@
+#define ENCODER_LEFT 2  # Motor 1
+#define ENCODER_RIGHT 3  # Motor 2
+static volatile int16_t count_left=0;
+
+// 3.215 = (60sec/0.1sec)/(48gear ratio * 4pulses/rev)
+float rotation=3.125;  
+float RPM=0;
+
+/***************************************/
+// This is the Interrupt Service Routine
+// for the left motor.
+/***************************************/
+void ISRMotorLeft()
+{
+  count_left++;
+}
+
+void setup() {
+  pinMode(ENCODER_LEFT, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(ENCODER_LEFT), ISRMotorLeft, FALLING);
+}
+
+
+//encoder reading to RPM   
+void loop() {
+    count_left=0;
+    delay(100);
+    RPM = count_left*rotation;
+    Serial.print("RPM = ");
+    Serial.println(RPM);
+ }
+
