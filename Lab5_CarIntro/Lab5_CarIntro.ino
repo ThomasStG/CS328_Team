@@ -33,9 +33,13 @@ const uint8_t wheelCircumference = 223.84;  //mm
 static volatile int16_t count_left = 0;
 static volatile int16_t count_right = 0;
 
+int error = 0;
+
 // 3.215 = (60sec/0.1sec)/(48gear ratio * 4pulses/rev)
 float rotation = 3.125;
 float RPM = 0;
+
+uint8_t base_speed = 155;
 uint8_t right_speed = 155;
 uint8_t left_speed = 155;
 
@@ -84,7 +88,7 @@ void ISRMotorRight() {
 // Method: Forward
 // Input: speed – value [0-255]
 // Rotate the motor in a clockwise fashion
-void Forward(int speed) {
+void Forward() {
   analogWrite(MotorPWM_A, left_speed);
   analogWrite(MotorPWM_B, right_speed);
 
@@ -137,17 +141,34 @@ void brake() {
   digitalWrite(REAR_LEFT_BREAK, LOW);
 }
 
+int Kp = 1;
+int Kd = 0;
+int Ki = 0;
+
+float integral = 0;
+
+void pidSpeedAdjust() {
+  static unsigned long prevTime = millis();
+  unsigned long now = millis();
+  float dt = (now - prevTime) / 1000.0;
+  prevTime = now;
+  static int last_error = error;
+  error = count_left - count_right;
+
+  integral += error * dt;
+  float derivative = (error - last_error) / dt;
+
+  float output = Kp * error + Ki * integral + Kd * derivative;
+  Serial.println(output);
+
+  left_speed = base_speed + output;
+  right_speed = base_speed - output;
+}
+
 //encoder reading to RPM
 void loop() {
-  count_left = 0;
-  count_right = 0;
-  Forward(speed);
-  delay(50);
-  RPM = count_left * rotation;
-  Serial.print(speed + ", ");
-  Serial.print(RPM);
-  Serial.print(", ")
-  RPM = count_right * rotation;
-  Serial.println(RPM);
-  speed += 5
+  count_left = count_left % 180;
+  count_right = count_right % 180;
+  pidSpeedAdjust();
+  Forward();
 }
