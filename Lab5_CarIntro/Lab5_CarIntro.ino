@@ -29,7 +29,7 @@ float rotation = 3.125;
 float RPM = 0;
 uint8_t speed = 0;
 
-#define BAUD_RATE 38400
+#define BAUD_RATE 9600
 
 void setup() {
   pinMode(MotorPWM_A, OUTPUT);
@@ -56,6 +56,7 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(ENCODER_LEFT), ISRMotorLeft, FALLING);
   attachInterrupt(digitalPinToInterrupt(ENCODER_RIGHT), ISRMotorRight, FALLING);
   Serial.begin(BAUD_RATE);
+  Serial3.begin(BAUD_RATE);
 }
 
 /***************************************/
@@ -86,6 +87,8 @@ void Forward(int speed) {
   digitalWrite(INA2B, LOW);
 }
 
+//void reverse() {}
+
 void rightTurn() {
   digitalWrite(FRONT_RIGHT_TURN, HIGH);
   digitalWrite(REAR_RIGHT_TURN, HIGH);
@@ -98,10 +101,36 @@ void leftTurn() {
 
 //encoder reading to RPM
 void loop() {
-  leftTurn();
+  if(Serial3.available()){
+    char control = Serial3.read();
+    switch(control){
+      case "a":
+        leftTurn();
+        break;
+      case "d":
+        rightTurn();
+        break;
+      case "w":
+        speed += 5;
+        break;
+      case "s":
+        speed -= 5;
+        break;
+      case "x":
+        //stop();
+        break;
+      case "h":
+        break;
+      case "r":
+
+
+    }
+
+  }
+  
+  Serial.read()
   count_left = 0;
   Forward(speed);
-  speed += 5;
   delay(100);
   Serial.print(speed);
   Serial.print(", ");
