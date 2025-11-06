@@ -6,6 +6,7 @@
 #define INA2A 34
 #define INA1B 30
 #define INA2B 36
+
 #define FRONT_LEFT_TURN 49
 #define FRONT_LEFT_HIGH 47
 #define FRONT_LEFT_LOW 45
@@ -19,15 +20,24 @@
 #define REAR_LEFT_REVERSE 29
 #define REAR_LEFT_BREAK 27
 
-#define ENCODER_LEFT 2
-#define ENCODER_RIGHT 3
+#define LEFT_ENCODER_FRONT 2
+#define LEFT_ENCODER_REAR 3
+
+#define RIGHT_ENCODER_FRONT 18
+#define RIGHT_ENCODER_REAR 19
+
+
+const uint8_t countPerRotation = 180;
+const uint8_t wheelCircumference = 223.84;  //mm
+
 static volatile int16_t count_left = 0;
 static volatile int16_t count_right = 0;
 
 // 3.215 = (60sec/0.1sec)/(48gear ratio * 4pulses/rev)
 float rotation = 3.125;
 float RPM = 0;
-uint8_t speed = 0;
+uint8_t right_speed = 155;
+uint8_t left_speed = 155;
 
 #define BAUD_RATE 9600
 
@@ -52,11 +62,13 @@ void setup() {
   pinMode(REAR_LEFT_REVERSE, OUTPUT);
   pinMode(REAR_LEFT_BREAK, OUTPUT);
 
-  pinMode(ENCODER_LEFT, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(ENCODER_LEFT), ISRMotorLeft, FALLING);
-  attachInterrupt(digitalPinToInterrupt(ENCODER_RIGHT), ISRMotorRight, FALLING);
+  pinMode(LEFT_ENCODER_FRONT, INPUT_PULLUP);
+  pinMode(RIGHT_ENCODER_FRONT, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(LEFT_ENCODER_FRONT), ISRMotorLeft, FALLING);
+  attachInterrupt(digitalPinToInterrupt(RIGHT_ENCODER_FRONT), ISRMotorRight, FALLING);
   Serial.begin(BAUD_RATE);
   Serial3.begin(BAUD_RATE);
+  
 }
 
 /***************************************/
@@ -75,8 +87,8 @@ void ISRMotorRight() {
 // Input: speed – value [0-255]
 // Rotate the motor in a clockwise fashion
 void Forward(int speed) {
-  analogWrite(MotorPWM_A, speed);
-  analogWrite(MotorPWM_B, speed);
+  analogWrite(MotorPWM_A, left_speed);
+  analogWrite(MotorPWM_B, right_speed);
 
   // Left Motor
   digitalWrite(INA1A, HIGH);
@@ -90,50 +102,73 @@ void Forward(int speed) {
 //void reverse() {}
 
 void rightTurn() {
-  digitalWrite(FRONT_RIGHT_TURN, HIGH);
-  digitalWrite(REAR_RIGHT_TURN, HIGH);
+  for (int i = 0; i < 10; i++) {
+    digitalWrite(FRONT_RIGHT_TURN, HIGH);
+    digitalWrite(REAR_RIGHT_TURN, HIGH);
+    delay(100);
+    digitalWrite(FRONT_RIGHT_TURN, LOW);
+    digitalWrite(REAR_RIGHT_TURN, LOW);
+    delay(100);
+  }
 }
 
 void leftTurn() {
-  digitalWrite(FRONT_LEFT_TURN, HIGH);
-  digitalWrite(REAR_LEFT_TURN, HIGH);
+  // Set motors to turn left
+
+  for (int i = 0; i < 10; i++) {
+    digitalWrite(FRONT_LEFT_TURN, HIGH);
+    digitalWrite(REAR_LEFT_TURN, HIGH);
+    delay(100);
+    digitalWrite(FRONT_LEFT_TURN, LOW);
+    digitalWrite(REAR_LEFT_TURN, LOW);
+    delay(100);
+  }
+}
+
+void reverse() {
+  digitalWrite(REAR_LEFT_REVERSE, HIGH);
+  digitalWrite(REAR_RIGHT_REVERSE, HIGH);
+  delay(1000);
+  digitalWrite(REAR_LEFT_REVERSE, LOW);
+  digitalWrite(REAR_RIGHT_REVERSE, LOW);
+}
+
+void brake() {
+  digitalWrite(REAR_RIGHT_BRAKE, HIGH);
+  digitalWrite(REAR_LEFT_BREAK, HIGH);
+  delay(1000);
+  digitalWrite(REAR_RIGHT_BRAKE, LOW);
+  digitalWrite(REAR_LEFT_BREAK, LOW);
 }
 
 //encoder reading to RPM
 void loop() {
   if(Serial3.available()){
     char control = Serial3.read();
-    switch(control){
-      case "a":
+    Serial.println(control);
+    switch((int)control){
+      case 97:
         leftTurn();
         break;
-      case "d":
+      case 100:
         rightTurn();
         break;
-      case "w":
-        speed += 5;
+      case 119:
+        //speed += 5;
         break;
-      case "s":
-        speed -= 5;
+      case 115:
+        //speed -= 5;
         break;
-      case "x":
+      case 120:
         //stop();
         break;
-      case "h":
+      case 104:
         break;
-      case "r":
+      //case "r":
 
 
     }
 
   }
   
-  Serial.read()
-  count_left = 0;
-  Forward(speed);
-  delay(100);
-  Serial.print(speed);
-  Serial.print(", ");
-  RPM = count_left * rotation;
-  Serial.println(RPM);
 }
