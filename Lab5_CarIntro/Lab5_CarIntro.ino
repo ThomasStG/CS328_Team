@@ -110,19 +110,12 @@ void Forward() {
   digitalWrite(INA2B, LOW);
 }
 
-<<<<<<< HEAD
-//void reverse() {}
-
-void rightTurn() {
-  for (int i = 0; i < 10; i++) {
-=======
 static PT_THREAD(rightTurn(struct pt *pt)) {
   static int i = 0;
 
   PT_BEGIN(pt);
 
   for (i = 0; i < 10; i++) {
->>>>>>> 61fc9330c12760cc68ee430409fe99ec41d546db
     digitalWrite(FRONT_RIGHT_TURN, HIGH);
     digitalWrite(REAR_RIGHT_TURN, HIGH);
     PT_SLEEP(pt, 100);
@@ -251,7 +244,6 @@ void pidSpeedAdjust() {
 
 //encoder reading to RPM
 void loop() {
-<<<<<<< HEAD
   if(Serial3.available()){
     char control = Serial3.read();
     Serial.println(control);
@@ -285,7 +277,6 @@ void loop() {
   count_right = count_right % 180;
   //pidSpeedAdjust();
   //Forward();
-=======
   if (count_left >= 180) {
     count_left -= 180;
     rotations_left++;
@@ -321,5 +312,4 @@ void loop() {
   left_speed = 0;
 
   // }
->>>>>>> 61fc9330c12760cc68ee430409fe99ec41d546db
 }
