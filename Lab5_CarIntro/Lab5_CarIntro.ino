@@ -1,4 +1,15 @@
 #include "protothreads.h"
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#define SCREEN_ADDRESS 0x3C
+#define OLED_RESET -1
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 32
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
 // Pins for all inputs, keep in mind the PWM defines must be on PWM pins
 #define MotorPWM_A 4  //left motor
 #define MotorPWM_B 5  //right motor
@@ -29,16 +40,20 @@ pt ptBlink;
 #define RIGHT_ENCODER_FRONT 18
 #define RIGHT_ENCODER_REAR 19
 
+#define PIXY_CAMERA 10
+#define SONAR 11
+
+#define BUTTON_ONE 10
+#define BUTTON_TWO 12
 
 const uint8_t countPerRotation = 180;
 const uint8_t wheelCircumference = 223.84;  //mm
-const uint32_t line_length = 1000;          //TODO: measure the actual length
+const uint32_t line_length = 600.14;          //TODO: measure the actual length
 
 
 static volatile int16_t count_left = 0;
 static volatile int16_t count_right = 0;
 
-int error = 0;
 
 // 3.215 = (60sec/0.1sec)/(48gear ratio * 4pulses/rev)
 float rotation = 3.125;
@@ -46,12 +61,23 @@ float RPM = 0;
 
 uint8_t base_speed = 155;
 
+uint8_t base_right_speed = 180;
+uint8_t base_left_speed = 175;
+
 uint8_t right_speed = 180;
 uint8_t left_speed = 175;
 
 #define BAUD_RATE 9600
 
+void nonblockingDelay(unsigned long ms) {
+  unsigned long startTime = millis();
+  while (millis() - startTime < ms) {
+    yield();
+  }
+}
+
 void setup() {
+  display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS);
   PT_INIT(&ptBlink);
   pinMode(MotorPWM_A, OUTPUT);
   pinMode(MotorPWM_B, OUTPUT);
@@ -78,6 +104,11 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(LEFT_ENCODER_FRONT), ISRMotorLeft, FALLING);
   attachInterrupt(digitalPinToInterrupt(RIGHT_ENCODER_FRONT), ISRMotorRight, FALLING);
   Serial.begin(BAUD_RATE);
+
+  for (int i = 0; i < 4; i++) {
+    Forward3ft();
+    leftTurn();
+  }
 }
 
 /***************************************/
@@ -127,53 +158,45 @@ static PT_THREAD(rightTurn(struct pt *pt)) {
 
 unsigned long prevTime = 0;
 
-void leftTurnSignal(int totalTime, int rate) {
-  unsigned long now = millis();
-  static int blinkCount = 0;
-  static int maxBlinks = totalTime / rate;
-  static boolean ledState = false;
+static PT_THREAD(leftTurnSignal(struct pt *pt)) {
+  int i = 0;
 
-  if (blinkCount < maxBlinks && now - prevTime >= rate / 2) {  // every 500 ms
-    digitalWrite(FRONT_LEFT_TURN, ledState);
-    digitalWrite(REAR_LEFT_TURN, ledState);
-    prevTime = now;
-    ledState = !ledState;
-    blinkCount++;
+  PT_BEGIN(pt);
+
+  for (i = 0; i < 3; i++) {
+    digitalWrite(FRONT_LEFT_TURN, HIGH);
+    digitalWrite(REAR_LEFT_TURN, HIGH);
+    PT_SLEEP(pt, 75);
+    digitalWrite(FRONT_LEFT_TURN, LOW);
+    digitalWrite(REAR_LEFT_TURN, LOW);
+    PT_SLEEP(pt, 85);
   }
+
+  PT_END(pt);
 }
 
 void leftTurn() {
-  // Set motors to turn left
-
-  // coroutine to blink light while turning
-
+  count_right = 0;
+  leftTurnSignal(&ptBlink);
   analogWrite(MotorPWM_A, 0);
   analogWrite(MotorPWM_B, 215);
 
   // Left Motor
   digitalWrite(INA1A, HIGH);
   digitalWrite(INA2A, LOW);
-
   // Right Motor
   digitalWrite(INA1B, HIGH);
   digitalWrite(INA2B, LOW);
 
-  for (int i = 0; i < 3; i++) {
-    digitalWrite(FRONT_LEFT_TURN, HIGH);
-    digitalWrite(REAR_LEFT_TURN, HIGH);
-    delay(60);
-    digitalWrite(FRONT_LEFT_TURN, LOW);
-    digitalWrite(REAR_LEFT_TURN, LOW);
-    delay(60);
+  while (count_right < 95 * 3) {
+    nonblockingDelay(10);
   }
 
   analogWrite(MotorPWM_A, 0);
   analogWrite(MotorPWM_B, 0);
-
   // Left Motor
   digitalWrite(INA1A, HIGH);
   digitalWrite(INA2A, LOW);
-
   // Right Motor
   digitalWrite(INA1B, HIGH);
   digitalWrite(INA2B, LOW);
@@ -182,7 +205,7 @@ void leftTurn() {
 void reverse() {
   digitalWrite(REAR_LEFT_REVERSE, HIGH);
   digitalWrite(REAR_RIGHT_REVERSE, HIGH);
-  delay(1000);
+  nonblockingDelay(1000);
   digitalWrite(REAR_LEFT_REVERSE, LOW);
   digitalWrite(REAR_RIGHT_REVERSE, LOW);
 }
@@ -201,40 +224,51 @@ uint8_t rotations_right = 0;
 
 float integral = 0;
 
-void pidSpeedAdjust() {
-  static unsigned long prevTime = millis();
-  unsigned long now = millis();
-  float dt = (now - prevTime) / 1000.0;
-  prevTime = now;
-  static int last_error = error;
-  error = count_left - count_right;
+void Forward3ft() {
+  count_left = 0;
+  analogWrite(MotorPWM_A, base_left_speed);
+  analogWrite(MotorPWM_B, base_right_speed);
 
-  integral += error * dt;
-  float derivative = (error - last_error) / dt;
+  // Left Motor
+  digitalWrite(INA1A, HIGH);
+  digitalWrite(INA2A, LOW);
 
-  float output = Kp * error + Ki * integral + Kd * derivative;
-  Serial.println(output);
+  // Right Motor
+  digitalWrite(INA1B, HIGH);
+  digitalWrite(INA2B, LOW);
 
-  left_speed = base_speed + output;
-  right_speed = base_speed - output;
+  while (float(count_left) / countPerRotation < float(line_length) / float(wheelCircumference)) {
+    nonblockingDelay(10);
+  }
+
+  analogWrite(MotorPWM_A, 0);
+  analogWrite(MotorPWM_B, 0);
+
+  // Left Motor
+  digitalWrite(INA1A, HIGH);
+  digitalWrite(INA2A, LOW);
+
+  // Right Motor
+  digitalWrite(INA1B, HIGH);
+  digitalWrite(INA2B, LOW); 
 }
+
 
 //encoder reading to RPM
 void loop() {
-  if (count_left >= 180) {
-    count_left -= 180;
-    rotations_left++;
-  }
+  // if (count_left >= 180) {
+  //   count_left -= 180;
+  //   rotations_left++;
+  // }
 
-  if (count_right >= 180) {
-    count_right -= 180;
-    rotations_right++;
-  }
+  // if (count_right >= 180) {
+  //   count_right -= 180;
+  //   rotations_right++;
+  // }
 
-  // const uint8_t wheelCircumference = 223.84;  //mm
+  // // const uint8_t wheelCircumference = 223.84;  //mm
 
-  Forward();
-  //pidSpeedAdjust();
+  // //pidSpeedAdjust();
 
   // if (rotations_left * wheelCircumference >= line_length) {
   //   brake(true);
@@ -245,15 +279,13 @@ void loop() {
   //   right_speed = 0;
   // }
   // if (left_speed == 0 && right_speed == 0) {
-  delay(500);
-  leftTurn();
-  count_left = 0;
-  count_right = 0;
-  rotations_left = 0;
-  rotations_right = 0;
-  brake(false);
-  right_speed = 0;
-  left_speed = 0;
-
+  //   count_left = 0;
+  //   count_right = 0;
+  //   rotations_left = 0;
+  //   rotations_right = 0;
+  //   brake(false);
+  //   right_speed = 0;
+  //   left_speed = 0;
   // }
+  // Forward();
 }
