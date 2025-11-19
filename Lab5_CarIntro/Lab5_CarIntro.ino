@@ -1,4 +1,5 @@
 #include "protothreads.h"
+#include "BlinkLight.h"
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
@@ -21,18 +22,30 @@ pt ptBlink;
 #define INA1B 30
 #define INA2B 36
 
-#define FRONT_LEFT_TURN 49
-#define FRONT_LEFT_HIGH 47
-#define FRONT_LEFT_LOW 45
-#define FRONT_RIGHT_TURN 43
-#define FRONT_RIGHT_HIGH 41
-#define FRONT_RIGHT_LOW 39
-#define REAR_RIGHT_TURN 37
-#define REAR_RIGHT_REVERSE 35
-#define REAR_RIGHT_BRAKE 33
-#define REAR_LEFT_TURN 31
-#define REAR_LEFT_REVERSE 29
-#define REAR_LEFT_BREAK 27
+//#define FRONT_LEFT_TURN 49
+BlinkLight frontLeftTurn(49,250);
+//#define FRONT_LEFT_HIGH 47
+BlinkLight frontLeftHigh(47,0);
+//#define FRONT_LEFT_LOW 45
+BlinkLight frontLeftLow(45,0);
+//#define FRONT_RIGHT_TURN 43
+BlinkLight frontRightTurn(43,250);
+//#define FRONT_RIGHT_HIGH 41
+BlinkLight frontRightHigh(41,0);
+//#define FRONT_RIGHT_LOW 39
+BlinkLight frontRightLow(39,0);
+//#define REAR_RIGHT_TURN 37
+BlinkLight rearRightTurn(37,250);
+//#define REAR_RIGHT_REVERSE 35
+BlinkLight rearRightRev(35,0);
+//#define REAR_RIGHT_BRAKE 33
+BlinkLight rearRightBrake(33,0);
+//#define REAR_LEFT_TURN 31
+BlinkLight rearLeftTurn(31,250);
+//#define REAR_LEFT_REVERSE 29
+BlinkLight rearLeftRev(29,0);
+//#define REAR_LEFT_BREAK 27
+BlinkLight rearLeftBrake(27,0);
 
 #define LEFT_ENCODER_FRONT 2
 #define LEFT_ENCODER_REAR 3
@@ -86,18 +99,36 @@ void setup() {
   pinMode(INA1B, OUTPUT);
   pinMode(INA2B, OUTPUT);
 
-  pinMode(FRONT_LEFT_TURN, OUTPUT);
-  pinMode(FRONT_LEFT_HIGH, OUTPUT);
-  pinMode(FRONT_LEFT_LOW, OUTPUT);
-  pinMode(FRONT_RIGHT_TURN, OUTPUT);
-  pinMode(FRONT_RIGHT_HIGH, OUTPUT);
-  pinMode(FRONT_RIGHT_LOW, OUTPUT);
-  pinMode(REAR_RIGHT_TURN, OUTPUT);
-  pinMode(REAR_RIGHT_REVERSE, OUTPUT);
-  pinMode(REAR_RIGHT_BRAKE, OUTPUT);
-  pinMode(REAR_LEFT_TURN, OUTPUT);
-  pinMode(REAR_LEFT_REVERSE, OUTPUT);
-  pinMode(REAR_LEFT_BREAK, OUTPUT);
+
+  frontRightTurn.begin();
+  frontLeftTurn.begin();
+  rearRightTurn.begin();
+  rearLeftTurn.begin();
+
+  frontLeftHigh.begin();
+  frontLeftLow.begin();
+  frontRightHigh.begin();
+  frontLeftHigh.begin();
+
+  rearRightBrake.begin();
+  rearLeftBrake.begin();
+  rearRightRev.begin();
+  rearLeftRev.begin();
+
+ 
+
+  //pinMode(FRONT_LEFT_TURN, OUTPUT);
+  //pinMode(FRONT_LEFT_HIGH, OUTPUT);
+  //pinMode(FRONT_LEFT_LOW, OUTPUT);
+  //pinMode(FRONT_RIGHT_TURN, OUTPUT);
+  //pinMode(FRONT_RIGHT_HIGH, OUTPUT);
+  //pinMode(FRONT_RIGHT_LOW, OUTPUT);
+  //pinMode(REAR_RIGHT_TURN, OUTPUT);
+  //pinMode(REAR_RIGHT_REVERSE, OUTPUT);
+  //pinMode(REAR_RIGHT_BRAKE, OUTPUT);
+  //pinMode(REAR_LEFT_TURN, OUTPUT);
+  //pinMode(REAR_LEFT_REVERSE, OUTPUT);
+  //pinMode(REAR_LEFT_BREAK, OUTPUT);
 
   pinMode(LEFT_ENCODER_FRONT, INPUT_PULLUP);
   pinMode(RIGHT_ENCODER_FRONT, INPUT_PULLUP);
@@ -139,18 +170,26 @@ void Forward() {
   digitalWrite(INA2B, LOW);
 }
 
-static PT_THREAD(rightTurn(struct pt *pt)) {
+static PT_THREAD(turnSignal(struct pt *pt)) {
   static int i = 0;
 
   PT_BEGIN(pt);
 
-  for (i = 0; i < 10; i++) {
-    digitalWrite(FRONT_RIGHT_TURN, HIGH);
-    digitalWrite(REAR_RIGHT_TURN, HIGH);
-    PT_SLEEP(pt, 100);
-    digitalWrite(FRONT_RIGHT_TURN, LOW);
-    digitalWrite(REAR_RIGHT_TURN, LOW);
-    PT_SLEEP(pt, 100);
+  while(1){
+    frontRightTurn.update();
+    frontLeftTurn.update();
+    rearRightTurn.begin();
+    rearLeftTurn.begin();
+
+    frontLeftHigh.update();
+    frontLeftLow.update();
+    frontRightHigh.update();
+    frontLeftHigh.update();
+
+    rearRightBrake.update();
+    rearLeftBrake.update();
+    rearRightRev.update();
+    rearLeftRev.update();
   }
 
   PT_END(pt);
@@ -158,26 +197,11 @@ static PT_THREAD(rightTurn(struct pt *pt)) {
 
 unsigned long prevTime = 0;
 
-static PT_THREAD(leftTurnSignal(struct pt *pt)) {
-  int i = 0;
-
-  PT_BEGIN(pt);
-
-  for (i = 0; i < 3; i++) {
-    digitalWrite(FRONT_LEFT_TURN, HIGH);
-    digitalWrite(REAR_LEFT_TURN, HIGH);
-    PT_SLEEP(pt, 75);
-    digitalWrite(FRONT_LEFT_TURN, LOW);
-    digitalWrite(REAR_LEFT_TURN, LOW);
-    PT_SLEEP(pt, 85);
-  }
-
-  PT_END(pt);
-}
 
 void leftTurn() {
   count_right = 0;
-  leftTurnSignal(&ptBlink);
+  frontLeftTurn.on();
+  rearLeftTurn.on();
   analogWrite(MotorPWM_A, 0);
   analogWrite(MotorPWM_B, 215);
 
@@ -200,19 +224,22 @@ void leftTurn() {
   // Right Motor
   digitalWrite(INA1B, HIGH);
   digitalWrite(INA2B, LOW);
+
+  frontLeftTurn.off();
+  rearLeftTurn.off();
 }
 
 void reverse() {
-  digitalWrite(REAR_LEFT_REVERSE, HIGH);
-  digitalWrite(REAR_RIGHT_REVERSE, HIGH);
+  rearRightRev.on();
+  rearLeftRev.on();
   nonblockingDelay(1000);
-  digitalWrite(REAR_LEFT_REVERSE, LOW);
-  digitalWrite(REAR_RIGHT_REVERSE, LOW);
+  rearRightRev.off();
+  rearLeftRev.off();
 }
 
-void brake(boolean on) {
-  digitalWrite(REAR_RIGHT_BRAKE, on);
-  digitalWrite(REAR_LEFT_BREAK, on);
+void brake() {
+  rearRightBrake.on();
+  rearLeftBrake.on();
 }
 
 float Kp = 0.5;
@@ -256,35 +283,6 @@ void Forward3ft() {
 
 //encoder reading to RPM
 void loop() {
-  if(Serial3.available()){
-    char control = Serial3.read();
-    Serial.println(control);
-    switch((int)control){
-      case 97: //a
-        leftTurn();
-        break;
-      case 100: //d
-        rightTurn();
-        break;
-      case 119:
-        //speed += 5;
-        break;
-      case 115:
-        //speed -= 5;
-        break;
-      case 120: //x
-        brake();
-        break;
-      case 104:
-        break;
-      //case "r":
-      default:
-        Serial.println("Command Unavailable");
-
-    }
-
-  }
-  
   count_left = count_left % 180;
   count_right = count_right % 180;
   //pidSpeedAdjust();
@@ -293,11 +291,6 @@ void loop() {
     count_left -= 180;
     rotations_left++;
   }
-
-  // if (count_left >= 180) {
-  //   count_left -= 180;
-  //   rotations_left++;
-  // }
 
   // if (count_right >= 180) {
   //   count_right -= 180;
