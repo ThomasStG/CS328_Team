@@ -32,5 +32,6 @@ void BlinkLight::on(){
 }
 
 void BlinkLight::off(){
+  _state = false;
   _enabled = false;
 }

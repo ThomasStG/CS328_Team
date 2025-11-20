@@ -23,25 +23,25 @@ pt ptBlink;
 #define INA2B 36
 
 //#define FRONT_LEFT_TURN 49
-BlinkLight frontLeftTurn(49,250);
+BlinkLight frontLeftTurn(49,100);
 //#define FRONT_LEFT_HIGH 47
 BlinkLight frontLeftHigh(47,0);
 //#define FRONT_LEFT_LOW 45
 BlinkLight frontLeftLow(45,0);
 //#define FRONT_RIGHT_TURN 43
-BlinkLight frontRightTurn(43,250);
+BlinkLight frontRightTurn(43,100);
 //#define FRONT_RIGHT_HIGH 41
 BlinkLight frontRightHigh(41,0);
 //#define FRONT_RIGHT_LOW 39
 BlinkLight frontRightLow(39,0);
 //#define REAR_RIGHT_TURN 37
-BlinkLight rearRightTurn(37,250);
+BlinkLight rearRightTurn(37,100);
 //#define REAR_RIGHT_REVERSE 35
 BlinkLight rearRightRev(35,0);
 //#define REAR_RIGHT_BRAKE 33
 BlinkLight rearRightBrake(33,0);
 //#define REAR_LEFT_TURN 31
-BlinkLight rearLeftTurn(31,250);
+BlinkLight rearLeftTurn(31,100);
 //#define REAR_LEFT_REVERSE 29
 BlinkLight rearLeftRev(29,0);
 //#define REAR_LEFT_BREAK 27
@@ -136,10 +136,10 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(RIGHT_ENCODER_FRONT), ISRMotorRight, FALLING);
   Serial.begin(BAUD_RATE);
 
-  for (int i = 0; i < 4; i++) {
+  /*for (int i = 0; i < 4; i++) {
     Forward3ft();
     leftTurn();
-  }
+  }*/
 }
 
 /***************************************/
@@ -171,15 +171,17 @@ void Forward() {
 }
 
 static PT_THREAD(turnSignal(struct pt *pt)) {
-  static int i = 0;
+  
 
   PT_BEGIN(pt);
+  
 
   while(1){
+    Serial.println("Updating lights");
     frontRightTurn.update();
     frontLeftTurn.update();
-    rearRightTurn.begin();
-    rearLeftTurn.begin();
+    rearRightTurn.update();
+    rearLeftTurn.update();
 
     frontLeftHigh.update();
     frontLeftLow.update();
@@ -190,6 +192,8 @@ static PT_THREAD(turnSignal(struct pt *pt)) {
     rearLeftBrake.update();
     rearRightRev.update();
     rearLeftRev.update();
+
+    PT_YIELD(pt);
   }
 
   PT_END(pt);
@@ -213,6 +217,7 @@ void leftTurn() {
   digitalWrite(INA2B, LOW);
 
   while (count_right < 95 * 3) {
+    PT_SCHEDULE(turnSignal(&ptBlink));
     nonblockingDelay(10);
   }
 
@@ -250,6 +255,8 @@ uint8_t rotations_left = 0;
 uint8_t rotations_right = 0;
 
 float integral = 0;
+
+int iterator = 0;
 
 void Forward3ft() {
   count_left = 0;
@@ -291,6 +298,15 @@ void loop() {
     count_left -= 180;
     rotations_left++;
   }
+  if(iterator < 4){
+    Forward3ft();
+    leftTurn();
+    iterator++;
+  }
+  else{
+    brake();
+  }
+  
 
   // if (count_right >= 180) {
   //   count_right -= 180;
