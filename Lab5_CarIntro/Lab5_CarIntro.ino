@@ -23,29 +23,29 @@ pt ptBlink;
 #define INA2B 36
 
 //#define FRONT_LEFT_TURN 49
-BlinkLight frontLeftTurn(49,100);
+BlinkLight frontLeftTurn(49, 100);
 //#define FRONT_LEFT_HIGH 47
-BlinkLight frontLeftHigh(47,0);
+BlinkLight frontLeftHigh(47, 0);
 //#define FRONT_LEFT_LOW 45
-BlinkLight frontLeftLow(45,0);
+BlinkLight frontLeftLow(45, 0);
 //#define FRONT_RIGHT_TURN 43
-BlinkLight frontRightTurn(43,100);
+BlinkLight frontRightTurn(43, 100);
 //#define FRONT_RIGHT_HIGH 41
-BlinkLight frontRightHigh(41,0);
+BlinkLight frontRightHigh(41, 0);
 //#define FRONT_RIGHT_LOW 39
-BlinkLight frontRightLow(39,0);
+BlinkLight frontRightLow(39, 0);
 //#define REAR_RIGHT_TURN 37
-BlinkLight rearRightTurn(37,100);
+BlinkLight rearRightTurn(37, 100);
 //#define REAR_RIGHT_REVERSE 35
-BlinkLight rearRightRev(35,0);
+BlinkLight rearRightRev(35, 0);
 //#define REAR_RIGHT_BRAKE 33
-BlinkLight rearRightBrake(33,0);
+BlinkLight rearRightBrake(33, 0);
 //#define REAR_LEFT_TURN 31
-BlinkLight rearLeftTurn(31,100);
+BlinkLight rearLeftTurn(31, 100);
 //#define REAR_LEFT_REVERSE 29
-BlinkLight rearLeftRev(29,0);
+BlinkLight rearLeftRev(29, 0);
 //#define REAR_LEFT_BREAK 27
-BlinkLight rearLeftBrake(27,0);
+BlinkLight rearLeftBrake(27, 0);
 
 #define LEFT_ENCODER_FRONT 2
 #define LEFT_ENCODER_REAR 3
@@ -61,7 +61,7 @@ BlinkLight rearLeftBrake(27,0);
 
 const uint8_t countPerRotation = 180;
 const uint8_t wheelCircumference = 223.84;  //mm
-const uint32_t line_length = 600.14;          //TODO: measure the actual length
+const uint32_t line_length = 600.14;        //TODO: measure the actual length
 
 
 static volatile int16_t count_left = 0;
@@ -79,6 +79,8 @@ uint8_t base_left_speed = 175;
 
 uint8_t right_speed = 180;
 uint8_t left_speed = 175;
+
+float startTime = 0;
 
 #define BAUD_RATE 9600
 
@@ -117,7 +119,7 @@ void setup() {
   rearRightRev.begin();
   rearLeftRev.begin();
 
- 
+
 
   //pinMode(FRONT_LEFT_TURN, OUTPUT);
   //pinMode(FRONT_LEFT_HIGH, OUTPUT);
@@ -138,22 +140,7 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(RIGHT_ENCODER_FRONT), ISRMotorRight, FALLING);
   Serial.begin(BAUD_RATE);
 
-  float startTime = millis();
-
-  for (int i = 0; i < 4; i++) {
-    Forward3ft();
-    leftTurn();
-  }
-  brake(true);
-
-  float endTime = millis();
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(0, 0);
-  display.print((endTime - startTime)/1000);
-  display.print(" seconds");
-  display.display();
+  startTime = millis();
 }
 
 /***************************************/
@@ -185,12 +172,12 @@ void Forward() {
 }
 
 static PT_THREAD(turnSignal(struct pt *pt)) {
-  
+
 
   PT_BEGIN(pt);
-  
 
-  while(1){
+
+  while (1) {
     Serial.println("Updating lights");
     frontRightTurn.update();
     frontLeftTurn.update();
@@ -230,7 +217,7 @@ void leftTurn() {
   digitalWrite(INA1B, HIGH);
   digitalWrite(INA2B, LOW);
 
-  while (count_right < 95 * 3) {
+  while (count_right < 100 * 3) {
     PT_SCHEDULE(turnSignal(&ptBlink));
     nonblockingDelay(10);
   }
@@ -298,7 +285,7 @@ void Forward3ft() {
 
   // Right Motor
   digitalWrite(INA1B, HIGH);
-  digitalWrite(INA2B, LOW); 
+  digitalWrite(INA2B, LOW);
 }
 
 
@@ -312,15 +299,26 @@ void loop() {
     count_left -= 180;
     rotations_left++;
   }
-  if(iterator < 4){
+  if (iterator < 4) {
     Forward3ft();
     leftTurn();
     iterator++;
+  } else if (iterator == 4) {
+    brake();
+  float endTime = millis();
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(0, 0);
+  display.print((endTime - startTime) / 1000);
+  display.print(" seconds");
+  display.display();
+  iterator++;
   }
-  else{
+  else {
     brake();
   }
-  
+
 
   // if (count_right >= 180) {
   //   count_right -= 180;
@@ -349,5 +347,8 @@ void loop() {
   //   left_speed = 0;
   // }
   // Forward();
-
 }
+
+
+
+
