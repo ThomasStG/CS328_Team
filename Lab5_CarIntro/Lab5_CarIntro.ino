@@ -92,10 +92,15 @@ void nonblockingDelay(unsigned long ms) {
 }
 
 void setup() {
+
+  //Initialize the OLED screen 
   display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS);
   display.clearDisplay();
   display.display();
   PT_INIT(&ptBlink);
+
+  //Initialize the pinmodes for the motors
+
   pinMode(MotorPWM_A, OUTPUT);
   pinMode(MotorPWM_B, OUTPUT);
   pinMode(INA1A, OUTPUT);
@@ -103,6 +108,7 @@ void setup() {
   pinMode(INA1B, OUTPUT);
   pinMode(INA2B, OUTPUT);
 
+  //Initialize the pinmodes for the lights
 
   frontRightTurn.begin();
   frontLeftTurn.begin();
@@ -163,7 +169,7 @@ static PT_THREAD(turnSignal(struct pt *pt)) {
 
 
   while (1) {
-    Serial.println("Updating lights");
+    //Update lights with the logic determining if they are on/off
     frontRightTurn.update();
     frontLeftTurn.update();
     rearRightTurn.update();
@@ -190,6 +196,7 @@ unsigned long prevTime = 0;
 
 void leftTurn() {
   count_right = 0;
+  //Enable Blinking lights
   frontLeftTurn.on();
   rearLeftTurn.on();
   analogWrite(MotorPWM_A, 0);
@@ -203,6 +210,7 @@ void leftTurn() {
   digitalWrite(INA2B, LOW);
 
   while (count_right < 100 * 3) {
+    //Update blinking lights
     PT_SCHEDULE(turnSignal(&ptBlink));
     nonblockingDelay(10);
   }
@@ -220,6 +228,8 @@ void leftTurn() {
   rearLeftTurn.off();
 }
 
+//Reverse function
+
 void reverse() {
   rearRightRev.on();
   rearLeftRev.on();
@@ -227,6 +237,8 @@ void reverse() {
   rearRightRev.off();
   rearLeftRev.off();
 }
+
+//Break function
 
 void brake() {
   rearRightBrake.on();
@@ -241,7 +253,7 @@ uint8_t rotations_left = 0;
 uint8_t rotations_right = 0;
 
 float integral = 0;
-
+//iterator to control how many times the car goes forward and turns left
 int iterator = 0;
 
 void Forward3ft() {
@@ -283,12 +295,15 @@ void loop() {
     rotations_left++;
   }
   if (iterator < 4) {
+    //If iterator is lower than 4, call the forward 3ft and left turn functions
     Forward3ft();
     leftTurn();
-    iterator++;
+    iterator++; //Increment iterator
   } else if (iterator == 4) {
+    //If iterator equates to 4
     brake();
     float endTime = millis();
+    //Configure OLED display to display the total time in seconds 
     display.clearDisplay();
     display.setTextSize(1);
     display.setTextColor(WHITE);
@@ -296,8 +311,8 @@ void loop() {
     display.print((endTime - startTime) / 1000);
     display.print(" seconds");
     display.display();
-    iterator++;
+    iterator++; //Increment iterator
   } else {
-    brake();
+    brake(); //Turn on the brake lights
   }
 }

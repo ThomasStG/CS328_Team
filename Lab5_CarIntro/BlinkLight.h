@@ -2,7 +2,7 @@
 #define BLINKLIGHT_H
 
 #include <Arduino.h>
-
+//Header file that handles all of the led lights
 
 class BlinkLight{
   public:
