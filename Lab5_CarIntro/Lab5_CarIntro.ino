@@ -78,6 +78,8 @@ void nonblockingDelay(unsigned long ms) {
 
 void setup() {
   display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS);
+  display.clearDisplay();
+  display.display();
   PT_INIT(&ptBlink);
   pinMode(MotorPWM_A, OUTPUT);
   pinMode(MotorPWM_B, OUTPUT);
@@ -105,10 +107,22 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(RIGHT_ENCODER_FRONT), ISRMotorRight, FALLING);
   Serial.begin(BAUD_RATE);
 
+  float startTime = millis();
+
   for (int i = 0; i < 4; i++) {
     Forward3ft();
     leftTurn();
   }
+  brake(true);
+
+  float endTime = millis();
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(0, 0);
+  display.print((endTime - startTime)/1000);
+  display.print(" seconds");
+  display.display();
 }
 
 /***************************************/
@@ -163,14 +177,11 @@ static PT_THREAD(leftTurnSignal(struct pt *pt)) {
 
   PT_BEGIN(pt);
 
-  for (i = 0; i < 3; i++) {
     digitalWrite(FRONT_LEFT_TURN, HIGH);
     digitalWrite(REAR_LEFT_TURN, HIGH);
-    PT_SLEEP(pt, 75);
+    PT_SLEEP(pt, 70);
     digitalWrite(FRONT_LEFT_TURN, LOW);
     digitalWrite(REAR_LEFT_TURN, LOW);
-    PT_SLEEP(pt, 85);
-  }
 
   PT_END(pt);
 }
@@ -188,7 +199,7 @@ void leftTurn() {
   digitalWrite(INA1B, HIGH);
   digitalWrite(INA2B, LOW);
 
-  while (count_right < 95 * 3) {
+  while (count_right < 100 * 3) {
     nonblockingDelay(10);
   }
 
