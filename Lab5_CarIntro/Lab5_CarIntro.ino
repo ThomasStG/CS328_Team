@@ -95,13 +95,15 @@ void blockingDelay(unsigned long ms) {
  * Setup Function. Runs at the start once.
  */
 void setup() {
-  // initializes display with default values
+
+  //Initialize the OLED screen 
   display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS);
   display.clearDisplay();
   display.display();
   PT_INIT(&ptBlink);
 
-  // Set modes for pins
+  //Initialize the pinmodes for the motors
+
   pinMode(MotorPWM_A, OUTPUT);
   pinMode(MotorPWM_B, OUTPUT);
   pinMode(INA1A, OUTPUT);
@@ -109,7 +111,8 @@ void setup() {
   pinMode(INA1B, OUTPUT);
   pinMode(INA2B, OUTPUT);
 
-  // initialize lights
+  //Initialize the pinmodes for the lights
+
   frontRightTurn.begin();
   frontLeftTurn.begin();
   rearRightTurn.begin();
@@ -170,7 +173,7 @@ static PT_THREAD(turnSignal(struct pt *pt)) {
 
 
   while (1) {
-    Serial.println("Updating lights");
+    //Update lights with the logic determining if they are on/off
     frontRightTurn.update();
     frontLeftTurn.update();
     rearRightTurn.update();
@@ -200,8 +203,7 @@ unsigned long prevTime = 0;
 void leftTurn() {
   // reset count_right to correctly count turn distance
   count_right = 0;
-
-  // Set turn signal to correctly run
+  //Enable Blinking lights
   frontLeftTurn.on();
   rearLeftTurn.on();
   // Set left motor to stopa nd right motor to accelerate
@@ -217,6 +219,7 @@ void leftTurn() {
 
   // Measure rotations and blink leds
   while (count_right < 100 * 3) {
+    //Update blinking lights
     PT_SCHEDULE(turnSignal(&ptBlink));
     blockingDelay(10);
   }
@@ -302,6 +305,7 @@ void loop() {
   count_right = count_right % 180;
   // If within the first four iterations move forward line distance and turn left
   if (iterator < 4) {
+    //If iterator is lower than 4, call the forward 3ft and left turn functions
     Forward3ft();
     leftTurn();
     iterator++;
@@ -310,6 +314,7 @@ void loop() {
     // Display time and break
     brake();
     float endTime = millis();
+    //Configure OLED display to display the total time in seconds 
     display.clearDisplay();
     display.setTextSize(1);
     display.setTextColor(WHITE);
@@ -317,8 +322,8 @@ void loop() {
     display.print((endTime - startTime) / 1000);
     display.print(" seconds");
     display.display();
-    iterator++;
+    iterator++; //Increment iterator
   } else {
-    brake();
+    brake(); //Turn on the brake lights
   }
 }
