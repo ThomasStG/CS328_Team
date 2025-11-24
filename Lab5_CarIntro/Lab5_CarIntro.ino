@@ -96,7 +96,7 @@ void blockingDelay(unsigned long ms) {
  */
 void setup() {
 
-  //Initialize the OLED screen 
+  //Initialize the OLED screen
   display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS);
   display.clearDisplay();
   display.display();
@@ -166,6 +166,9 @@ void Forward() {
   digitalWrite(INA2B, LOW);
 }
 
+/**
+ * Protothread to update the lights asyncronously
+ */
 static PT_THREAD(turnSignal(struct pt *pt)) {
 
 
@@ -314,7 +317,7 @@ void loop() {
     // Display time and break
     brake();
     float endTime = millis();
-    //Configure OLED display to display the total time in seconds 
+    //Configure OLED display to display the total time in seconds
     display.clearDisplay();
     display.setTextSize(1);
     display.setTextColor(WHITE);
@@ -322,8 +325,8 @@ void loop() {
     display.print((endTime - startTime) / 1000);
     display.print(" seconds");
     display.display();
-    iterator++; //Increment iterator
+    iterator++;  //Increment iterator
   } else {
-    brake(); //Turn on the brake lights
+    brake();  //Turn on the brake lights
   }
 }
