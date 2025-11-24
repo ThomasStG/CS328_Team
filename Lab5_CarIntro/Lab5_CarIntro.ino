@@ -83,8 +83,8 @@ float startTime = 0;
 
 #define BAUD_RATE 9600
 
-// Custom method to have a non-blocking
-void nonblockingDelay(unsigned long ms) {
+// Custom method to have a blocking whill convert to a non-blocking delay for project 2
+void blockingDelay(unsigned long ms) {
   unsigned long startTime = millis();
   while (millis() - startTime < ms) {
     yield();
@@ -218,7 +218,7 @@ void leftTurn() {
   // Measure rotations and blink leds
   while (count_right < 100 * 3) {
     PT_SCHEDULE(turnSignal(&ptBlink));
-    nonblockingDelay(10);
+    blockingDelay(10);
   }
 
   // Reset wheel speeds
@@ -241,7 +241,7 @@ void leftTurn() {
 void reverse() {
   rearRightRev.on();
   rearLeftRev.on();
-  nonblockingDelay(1000);
+  blockingDelay(1000);
   rearRightRev.off();
   rearLeftRev.off();
 }
@@ -278,7 +278,7 @@ void Forward3ft() {
   digitalWrite(INA2B, LOW);
 
   while (float(count_left) / countPerRotation < float(line_length) / float(wheelCircumference)) {
-    nonblockingDelay(10);
+    blockingDelay(10);
   }
 
   analogWrite(MotorPWM_A, 0);
