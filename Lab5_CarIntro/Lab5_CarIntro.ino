@@ -9,12 +9,14 @@
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 32
 
+// setup the oled
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 // Pins for all inputs, keep in mind the PWM defines must be on PWM pins
 #define MotorPWM_A 4  //left motor
 #define MotorPWM_B 5  //right motor
 
+// protothread for the turn signal
 pt ptBlink;
 
 #define INA1A 32
@@ -63,17 +65,14 @@ const uint8_t countPerRotation = 180;
 const uint8_t wheelCircumference = 223.84;  //mm
 const uint32_t line_length = 600.14;        //TODO: measure the actual length
 
-
 static volatile int16_t count_left = 0;
 static volatile int16_t count_right = 0;
-
 
 // 3.215 = (60sec/0.1sec)/(48gear ratio * 4pulses/rev)
 float rotation = 3.125;
 float RPM = 0;
 
-uint8_t base_speed = 155;
-
+// Define base speeds for left and right wheels for straight driving
 uint8_t base_right_speed = 180;
 uint8_t base_left_speed = 175;
 
@@ -84,6 +83,7 @@ float startTime = 0;
 
 #define BAUD_RATE 9600
 
+// Custom method to have a non-blocking
 void nonblockingDelay(unsigned long ms) {
   unsigned long startTime = millis();
   while (millis() - startTime < ms) {
@@ -91,11 +91,17 @@ void nonblockingDelay(unsigned long ms) {
   }
 }
 
+/**
+ * Setup Function. Runs at the start once.
+ */
 void setup() {
+  // initializes display with default values
   display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS);
   display.clearDisplay();
   display.display();
   PT_INIT(&ptBlink);
+
+  // Set modes for pins
   pinMode(MotorPWM_A, OUTPUT);
   pinMode(MotorPWM_B, OUTPUT);
   pinMode(INA1A, OUTPUT);
@@ -103,7 +109,7 @@ void setup() {
   pinMode(INA1B, OUTPUT);
   pinMode(INA2B, OUTPUT);
 
-
+  // initialize lights
   frontRightTurn.begin();
   frontLeftTurn.begin();
   rearRightTurn.begin();
@@ -125,6 +131,7 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(RIGHT_ENCODER_FRONT), ISRMotorRight, FALLING);
   Serial.begin(BAUD_RATE);
 
+  // Store start time to calculate total time with
   startTime = millis();
 }
 
@@ -187,11 +194,17 @@ static PT_THREAD(turnSignal(struct pt *pt)) {
 
 unsigned long prevTime = 0;
 
-
+/**
+ * Function to turn left by 90 degrees and turn on the turn signal
+ */
 void leftTurn() {
+  // reset count_right to correctly count turn distance
   count_right = 0;
+
+  // Set turn signal to correctly run
   frontLeftTurn.on();
   rearLeftTurn.on();
+  // Set left motor to stopa nd right motor to accelerate
   analogWrite(MotorPWM_A, 0);
   analogWrite(MotorPWM_B, 215);
 
@@ -202,11 +215,13 @@ void leftTurn() {
   digitalWrite(INA1B, HIGH);
   digitalWrite(INA2B, LOW);
 
+  // Measure rotations and blink leds
   while (count_right < 100 * 3) {
     PT_SCHEDULE(turnSignal(&ptBlink));
     nonblockingDelay(10);
   }
 
+  // Reset wheel speeds
   analogWrite(MotorPWM_A, 0);
   analogWrite(MotorPWM_B, 0);
   // Left Motor
@@ -220,6 +235,9 @@ void leftTurn() {
   rearLeftTurn.off();
 }
 
+/**
+ * Currently unused function to display reverse lights
+ */
 void reverse() {
   rearRightRev.on();
   rearLeftRev.on();
@@ -228,22 +246,24 @@ void reverse() {
   rearLeftRev.off();
 }
 
+/**
+ * Function to turn on break lights
+ */
 void brake() {
   rearRightBrake.on();
   rearLeftBrake.on();
 }
 
-float Kp = 0.5;
-float Kd = 0;
-float Ki = 0;
 
-uint8_t rotations_left = 0;
-uint8_t rotations_right = 0;
-
-float integral = 0;
-
+// Iterator to hold which iteration of the loop we are on
 int iterator = 0;
 
+/**
+ * Function to go forward by 3 feet (line_length)
+ *
+ * - Sets motor speed to predefined values which cause straight movement.
+ * - Counts rotations until desired distance is met.
+ */
 void Forward3ft() {
   count_left = 0;
   analogWrite(MotorPWM_A, base_left_speed);
@@ -273,20 +293,21 @@ void Forward3ft() {
   digitalWrite(INA2B, LOW);
 }
 
-
-//encoder reading to RPM
+/**
+ * Main looping function to handle first four iterations then display time and brake lights
+ */
 void loop() {
+  // prevent integer overflow by limiting counts to 180 (1 rotation)
   count_left = count_left % 180;
   count_right = count_right % 180;
-  if (count_left >= 180) {
-    count_left -= 180;
-    rotations_left++;
-  }
+  // If within the first four iterations move forward line distance and turn left
   if (iterator < 4) {
     Forward3ft();
     leftTurn();
     iterator++;
+
   } else if (iterator == 4) {
+    // Display time and break
     brake();
     float endTime = millis();
     display.clearDisplay();

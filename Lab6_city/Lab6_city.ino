@@ -15,7 +15,10 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 #define MotorPWM_A 4  //left motor
 #define MotorPWM_B 5  //right motor
 
-pt ptBlink;
+pt ptMusic;
+pt ptLine;
+pt ptEcho;
+pt ptCamera;
 
 #define INA1A 32
 #define INA2A 34
@@ -53,11 +56,15 @@ BlinkLight rearLeftBrake(27, 0);
 #define RIGHT_ENCODER_FRONT 18
 #define RIGHT_ENCODER_REAR 19
 
-#define PIXY_CAMERA 10
+#define PIXY_CAMERA 9
 #define SONAR 11
 
 #define BUTTON_ONE 10
 #define BUTTON_TWO 12
+
+#define LINE_SENSOR_LEFT 8
+#define LINE_SENSOR_CENTER 7
+#define LINE_SENSOR_RIGHT 6
 
 const uint8_t countPerRotation = 180;
 const uint8_t wheelCircumference = 223.84;  //mm
@@ -89,43 +96,6 @@ void nonblockingDelay(unsigned long ms) {
   while (millis() - startTime < ms) {
     yield();
   }
-}
-
-void setup() {
-  display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS);
-  display.clearDisplay();
-  display.display();
-  PT_INIT(&ptBlink);
-  pinMode(MotorPWM_A, OUTPUT);
-  pinMode(MotorPWM_B, OUTPUT);
-  pinMode(INA1A, OUTPUT);
-  pinMode(INA2A, OUTPUT);
-  pinMode(INA1B, OUTPUT);
-  pinMode(INA2B, OUTPUT);
-
-
-  frontRightTurn.begin();
-  frontLeftTurn.begin();
-  rearRightTurn.begin();
-  rearLeftTurn.begin();
-
-  frontLeftHigh.begin();
-  frontLeftLow.begin();
-  frontRightHigh.begin();
-  frontLeftHigh.begin();
-
-  rearRightBrake.begin();
-  rearLeftBrake.begin();
-  rearRightRev.begin();
-  rearLeftRev.begin();
-
-  pinMode(LEFT_ENCODER_FRONT, INPUT_PULLUP);
-  pinMode(RIGHT_ENCODER_FRONT, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(LEFT_ENCODER_FRONT), ISRMotorLeft, FALLING);
-  attachInterrupt(digitalPinToInterrupt(RIGHT_ENCODER_FRONT), ISRMotorRight, FALLING);
-  Serial.begin(BAUD_RATE);
-
-  startTime = millis();
 }
 
 /***************************************/
@@ -203,7 +173,7 @@ void leftTurn() {
   digitalWrite(INA2B, LOW);
 
   while (count_right < 100 * 3) {
-    PT_SCHEDULE(turnSignal(&ptBlink));
+    PT_SCHEDULE(turnSignal(&ptLine));
     nonblockingDelay(10);
   }
 
@@ -233,14 +203,8 @@ void brake() {
   rearLeftBrake.on();
 }
 
-float Kp = 0.5;
-float Kd = 0;
-float Ki = 0;
-
 uint8_t rotations_left = 0;
 uint8_t rotations_right = 0;
-
-float integral = 0;
 
 int iterator = 0;
 
@@ -273,31 +237,60 @@ void Forward3ft() {
   digitalWrite(INA2B, LOW);
 }
 
+void setup() {
+  display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS);
+  display.clearDisplay();
+  display.display();
+  PT_INIT(&ptLine);
+  pinMode(MotorPWM_A, OUTPUT);
+  pinMode(MotorPWM_B, OUTPUT);
+  pinMode(INA1A, OUTPUT);
+  pinMode(INA2A, OUTPUT);
+  pinMode(INA1B, OUTPUT);
+  pinMode(INA2B, OUTPUT);
 
-//encoder reading to RPM
+  pinMode(LINE_SENSOR_LEFT, INPUT_PULLUP);
+  pinMode(LINE_SENSOR_CENTER, INPUT_PULLUP);
+  pinMode(LINE_SENSOR_RIGHT, INPUT_PULLUP);
+
+
+  frontRightTurn.begin();
+  frontLeftTurn.begin();
+  rearRightTurn.begin();
+  rearLeftTurn.begin();
+
+  frontLeftHigh.begin();
+  frontLeftLow.begin();
+  frontRightHigh.begin();
+  frontLeftHigh.begin();
+
+  rearRightBrake.begin();
+  rearLeftBrake.begin();
+  rearRightRev.begin();
+  rearLeftRev.begin();
+
+  pinMode(LEFT_ENCODER_FRONT, INPUT_PULLUP);
+  pinMode(RIGHT_ENCODER_FRONT, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(LEFT_ENCODER_FRONT), ISRMotorLeft, FALLING);
+  attachInterrupt(digitalPinToInterrupt(RIGHT_ENCODER_FRONT), ISRMotorRight, FALLING);
+  Serial.begin(BAUD_RATE);
+  Serial.println("Starting");
+}
+
 void loop() {
-  count_left = count_left % 180;
-  count_right = count_right % 180;
-  if (count_left >= 180) {
-    count_left -= 180;
-    rotations_left++;
-  }
-  if (iterator < 4) {
-    Forward3ft();
-    leftTurn();
-    iterator++;
-  } else if (iterator == 4) {
-    brake();
-    float endTime = millis();
-    display.clearDisplay();
-    display.setTextSize(1);
-    display.setTextColor(WHITE);
-    display.setCursor(0, 0);
-    display.print((endTime - startTime) / 1000);
-    display.print(" seconds");
-    display.display();
-    iterator++;
-  } else {
-    brake();
+  int left = digitalRead(LINE_SENSOR_LEFT);
+  int center = digitalRead(LINE_SENSOR_CENTER);
+  int right = digitalRead(LINE_SENSOR_RIGHT);
+
+  if (left == LOW && center == HIGH && right == HIGH) {
+    Serial.println("RIGHT");
+  } else if (left == HIGH && center == LOW && right == HIGH) {
+    Serial.println("WHAT");
+  } else if (left == HIGH && center == HIGH && right == LOW) {
+    Serial.println("LEFT");
+  } else if (left == HIGH && center == HIGH && right == HIGH) {
+    Serial.println("BRAKE");
+  } else if (left == LOW && center == HIGH && right == LOW) {
+    Serial.println("FORWARD");
   }
 }
