@@ -14,7 +14,7 @@ void BlinkLight::setPin(uint8_t newPin) {
 } //Switches pin FOR TESTING PURPOSES
 
 void BlinkLight::update() {
-  if (_enabled) { //Checks if the light is 
+  if (_enabled) { //Checks if the microcontroller enabled or disabled the lights
     if (_interval == 0) {
       digitalWrite(_pin, HIGH);
       return;
