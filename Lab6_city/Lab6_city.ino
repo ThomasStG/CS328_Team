@@ -3,6 +3,9 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <SPI.h>
+#include <Pixy2.h>
+#include "Music.h"
 #define SCREEN_ADDRESS 0x3C
 #define OLED_RESET -1
 
@@ -20,6 +23,7 @@ pt ptLine;
 pt ptEcho;
 pt ptCamera;
 
+int buzzer = 12;
 #define INA1A 32
 #define INA2A 34
 #define INA1B 30
@@ -56,8 +60,11 @@ BlinkLight rearLeftBrake(27, 0);
 #define RIGHT_ENCODER_FRONT 18
 #define RIGHT_ENCODER_REAR 19
 
-#define PIXY_CAMERA 9
-#define SONAR 11
+#define PIXY_CAMERA_MOTOR 9
+#define SONAR_MOTOR 11
+
+#define SONAR_ECHO 5
+#define SONAR_TRIGGER 4
 
 #define BUTTON_ONE 10
 #define BUTTON_TWO 12
@@ -68,7 +75,7 @@ BlinkLight rearLeftBrake(27, 0);
 
 const uint8_t countPerRotation = 180;
 const uint8_t wheelCircumference = 223.84;  //mm
-const uint32_t line_length = 600.14;        //TODO: measure the actual length
+const uint32_t line_length = 600.14;
 
 
 static volatile int16_t count_left = 0;
@@ -241,6 +248,7 @@ void setup() {
   display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS);
   display.clearDisplay();
   display.display();
+  PT_INIT(&ptMusic);
   PT_INIT(&ptLine);
   pinMode(MotorPWM_A, OUTPUT);
   pinMode(MotorPWM_B, OUTPUT);
@@ -249,9 +257,9 @@ void setup() {
   pinMode(INA1B, OUTPUT);
   pinMode(INA2B, OUTPUT);
 
-  pinMode(LINE_SENSOR_LEFT, INPUT_PULLUP);
-  pinMode(LINE_SENSOR_CENTER, INPUT_PULLUP);
-  pinMode(LINE_SENSOR_RIGHT, INPUT_PULLUP);
+  pinMode(LINE_SENSOR_LEFT, INPUT);
+  pinMode(LINE_SENSOR_CENTER, INPUT);
+  pinMode(LINE_SENSOR_RIGHT, INPUT);
 
 
   frontRightTurn.begin();
@@ -275,22 +283,55 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(RIGHT_ENCODER_FRONT), ISRMotorRight, FALLING);
   Serial.begin(BAUD_RATE);
   Serial.println("Starting");
+  Serial3.begin(BAUD_RATE);
 }
 
 void loop() {
+  if (Serial3.available()) {
+    String msg = "";
+    while (Serial3.available()) {
+      char c = Serial3.read();
+      msg += c;
+    }
+
+    Serial.println(msg);
+  }
   int left = digitalRead(LINE_SENSOR_LEFT);
   int center = digitalRead(LINE_SENSOR_CENTER);
   int right = digitalRead(LINE_SENSOR_RIGHT);
 
-  if (left == LOW && center == HIGH && right == HIGH) {
-    Serial.println("RIGHT");
-  } else if (left == HIGH && center == LOW && right == HIGH) {
-    Serial.println("WHAT");
-  } else if (left == HIGH && center == HIGH && right == LOW) {
-    Serial.println("LEFT");
-  } else if (left == HIGH && center == HIGH && right == HIGH) {
-    Serial.println("BRAKE");
-  } else if (left == LOW && center == HIGH && right == LOW) {
-    Serial.println("FORWARD");
+  int lineStatus = (left << 2) | (center << 1) | right;
+
+  Serial.println(lineStatus);
+  switch (lineStatus) {
+    case 0b100:
+      left_speed = base_left_speed;
+      right_speed = 0;
+      break;
+    case 0b001:
+      left_speed = 0;
+      right_speed = base_right_speed;
+      break;
+    case 0b111:
+    case 0b010:
+      left_speed = base_left_speed;
+      right_speed = base_right_speed;
+      break;
+    case 0b011:
+      left_speed = base_left_speed / 2;
+      right_speed = base_right_speed;
+      break;
+    case 0b110:
+      left_speed = base_left_speed;
+      right_speed = base_right_speed / 2;
+      break;
+    case 0b101:
+    case 0b000:
+    default:
+      left_speed = 0;
+      right_speed = 0;
+      brake();
+      break;
   }
+  Forward();
 }
