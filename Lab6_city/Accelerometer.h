@@ -1,4 +1,4 @@
-#indef ACCELEROMETER_H
+#ifndef ACCELEROMETER_H
 #define ACCELEROMETER_H
 
 #include <Arduino.h>
@@ -14,12 +14,15 @@ class Accelerometer{
     void update(int8_t RPM);
     void clear();
   private:
-    Adafruit_SSD1306 display();
+    uint8_t _address;
     uint8_t _pointX;
     uint8_t _pointY;
+    uint8_t _pointX1;
+    uint8_t _pointY1;
     int _width;
     int _height;
     signed int _reset;
+    Adafruit_SSD1306 *display;
 };
 
 #endif

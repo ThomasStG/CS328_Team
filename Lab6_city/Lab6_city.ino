@@ -1,5 +1,6 @@
 #include "protothreads.h"
 #include "BlinkLight.h"
+#include "Accelerometer.h"
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
@@ -9,7 +10,7 @@
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 32
 
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
 
 // Pins for all inputs, keep in mind the PWM defines must be on PWM pins
 #define MotorPWM_A 4  //left motor
@@ -24,6 +25,8 @@ pt ptCamera;
 #define INA2A 34
 #define INA1B 30
 #define INA2B 36
+
+Accelerometer rpmGauge(SCREEN_ADDRESS);
 
 //#define FRONT_LEFT_TURN 49
 BlinkLight frontLeftTurn(49, 100);
@@ -238,9 +241,6 @@ void Forward3ft() {
 }
 
 void setup() {
-  display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS);
-  display.clearDisplay();
-  display.display();
   PT_INIT(&ptLine);
   pinMode(MotorPWM_A, OUTPUT);
   pinMode(MotorPWM_B, OUTPUT);
