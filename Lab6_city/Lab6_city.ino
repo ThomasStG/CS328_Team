@@ -1,6 +1,6 @@
 #include "protothreads.h"
 #include "BlinkLight.h"
-#include "Accelerometer.h"
+#include "Speedometer.h"
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
@@ -30,7 +30,7 @@ int buzzer = 12;
 #define INA1B 30
 #define INA2B 36
 
-Accelerometer rpmGauge(SCREEN_ADDRESS);
+Speedometer mphGauge(SCREEN_ADDRESS);
 
 //#define FRONT_LEFT_TURN 49
 BlinkLight frontLeftTurn(49, 100);
@@ -89,10 +89,10 @@ static volatile int16_t count_right = 0;
 float rotation = 3.125;
 float RPM = 0;
 
-uint8_t base_speed = 155;
+uint8_t base_speed = 90;
 
-uint8_t base_right_speed = 180;
-uint8_t base_left_speed = 175;
+uint8_t base_right_speed = 90;
+uint8_t base_left_speed = 90;
 
 uint8_t right_speed = 180;
 uint8_t left_speed = 175;
@@ -124,6 +124,15 @@ void ISRMotorRight() {
 // Input: speed – value [0-255]
 // Rotate the motor in a clockwise fashion
 void Forward() {
+  float avg_speed = (left_speed + right_speed) / 2.0f;
+  mphGauge.update(avg_speed);
+
+  frontLeftHigh.on();
+  frontLeftLow.on();
+  frontRightHigh.on();
+  frontRightLow.on();
+
+
   analogWrite(MotorPWM_A, left_speed);
   analogWrite(MotorPWM_B, right_speed);
 
@@ -209,6 +218,8 @@ void reverse() {
 }
 
 void brake() {
+  count_left = 0;
+  count_right = 0;
   rearRightBrake.on();
   rearLeftBrake.on();
 }
@@ -248,6 +259,7 @@ void Forward3ft() {
 }
 
 void setup() {
+  mphGauge.init();
   PT_INIT(&ptMusic);
   PT_INIT(&ptLine);
   pinMode(MotorPWM_A, OUTPUT);
@@ -284,6 +296,14 @@ void setup() {
   Serial.begin(BAUD_RATE);
   Serial.println("Starting");
   Serial3.begin(BAUD_RATE);
+  /*
+  float testVal;
+  for(int i = 0; i <= 255; i++){
+    delay(5);
+    testVal = i * 1.0f;
+    mphGauge.update(testVal);
+  }
+  */
 }
 
 void loop() {
