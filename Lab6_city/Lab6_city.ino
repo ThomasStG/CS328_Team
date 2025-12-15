@@ -1,6 +1,7 @@
 #include "protothreads.h"
 #include "BlinkLight.h"
-#include "Accelerometer.h"
+#include "EchoLocator.h"
+#include "Speedometer.h"
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
@@ -9,11 +10,14 @@
 #include "Music.h"
 #define SCREEN_ADDRESS 0x3C
 #define OLED_RESET -1
+#include <Servo.h>
 
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 32
 
+#include "TheLionSleepsTonight.h"
 
+EchoLocator echoLocator(9, 10, 11);
 
 // Pins for all inputs, keep in mind the PWM defines must be on PWM pins
 #define MotorPWM_A 4  //left motor
@@ -21,7 +25,6 @@
 
 pt ptMusic;
 pt ptLine;
-pt ptEcho;
 pt ptCamera;
 
 int buzzer = 12;
@@ -30,7 +33,9 @@ int buzzer = 12;
 #define INA1B 30
 #define INA2B 36
 
-Accelerometer rpmGauge(SCREEN_ADDRESS);
+TheLionSleepsTonight song(12);
+
+Speedometer mphGauge(SCREEN_ADDRESS);
 
 //#define FRONT_LEFT_TURN 49
 BlinkLight frontLeftTurn(49, 100);
@@ -63,13 +68,10 @@ BlinkLight rearLeftBrake(27, 0);
 #define RIGHT_ENCODER_FRONT 18
 #define RIGHT_ENCODER_REAR 19
 
-#define PIXY_CAMERA_MOTOR 9
+#define SONAR_ECHO 9
+#define SONAR_TRIGGER 10
 #define SONAR_MOTOR 11
 
-#define SONAR_ECHO 5
-#define SONAR_TRIGGER 4
-
-#define BUTTON_ONE 10
 #define BUTTON_TWO 12
 
 #define LINE_SENSOR_LEFT 8
@@ -89,41 +91,30 @@ static volatile int16_t count_right = 0;
 float rotation = 3.125;
 float RPM = 0;
 
-uint8_t base_speed = 155;
+uint8_t base_speed = 90;
 
-uint8_t base_right_speed = 180;
-uint8_t base_left_speed = 175;
+uint8_t base_right_speed = 70;
+uint8_t base_left_speed = 65;
 
-uint8_t right_speed = 180;
-uint8_t left_speed = 175;
+uint8_t right_speed = 70;
+uint8_t left_speed = 65;
 
 float startTime = 0;
-
 #define BAUD_RATE 9600
-
-void nonblockingDelay(unsigned long ms) {
-  unsigned long startTime = millis();
-  while (millis() - startTime < ms) {
-    yield();
-  }
-}
-
-/***************************************/
-// This is the Interrupt Service Routine
-// for the left motor.
-/***************************************/
-void ISRMotorLeft() {
-  count_left++;
-}
-
-void ISRMotorRight() {
-  count_right++;
-}
 
 // Method: Forward
 // Input: speed – value [0-255]
 // Rotate the motor in a clockwise fashion
 void Forward() {
+  float avg_speed = (left_speed + right_speed) / 2.0f;
+  mphGauge.update(avg_speed);
+
+  frontLeftHigh.on();
+  frontLeftLow.on();
+  frontRightHigh.on();
+  frontRightLow.on();
+
+
   analogWrite(MotorPWM_A, left_speed);
   analogWrite(MotorPWM_B, right_speed);
 
@@ -134,6 +125,64 @@ void Forward() {
   // Right Motor
   digitalWrite(INA1B, HIGH);
   digitalWrite(INA2B, LOW);
+}
+
+static PT_THREAD(lineSensor(struct pt *ptLine)) {
+  
+  PT_BEGIN(ptLine);
+  int left;
+  int center;
+  int right;
+  int lineStatus;
+  
+  while(1){
+    delay(5);
+    
+    left = digitalRead(LINE_SENSOR_LEFT);
+    center = digitalRead(LINE_SENSOR_CENTER);
+    right = digitalRead(LINE_SENSOR_RIGHT);
+    
+    lineStatus = (left << 2) | (center << 1) | right;
+    Serial.print("Line Status: ");
+    Serial.print(left);
+    Serial.print(center);
+    Serial.println(right);
+    switch (lineStatus) {
+      case 0b100:
+        left_speed = base_left_speed;
+        right_speed = 0;
+        break;
+      case 0b001:
+        left_speed = 0;
+        right_speed = base_right_speed;
+        break;
+      case 0b111:
+      case 0b010:
+        left_speed = base_left_speed;
+        right_speed = base_right_speed;
+        break;
+      case 0b011:
+        left_speed = base_left_speed / 2;
+        right_speed = base_right_speed;
+        break;
+      case 0b110:
+        left_speed = base_left_speed;
+        right_speed = base_right_speed / 2;
+        break;
+      case 0b101:
+      case 0b000:
+      default:
+        left_speed = 0;
+        right_speed = 0;
+
+        break;
+    }
+      
+    PT_YIELD(ptLine);
+  }
+ 
+  PT_END(ptLine);
+
 }
 
 static PT_THREAD(turnSignal(struct pt *pt)) {
@@ -184,7 +233,7 @@ void leftTurn() {
 
   while (count_right < 100 * 3) {
     PT_SCHEDULE(turnSignal(&ptLine));
-    nonblockingDelay(10);
+    delay(10);
   }
 
   analogWrite(MotorPWM_A, 0);
@@ -203,55 +252,84 @@ void leftTurn() {
 void reverse() {
   rearRightRev.on();
   rearLeftRev.on();
-  nonblockingDelay(1000);
+  delay(1000);
   rearRightRev.off();
   rearLeftRev.off();
 }
 
 void brake() {
+  count_left = 0;
+  count_right = 0;
   rearRightBrake.on();
   rearLeftBrake.on();
 }
 
-uint8_t rotations_left = 0;
-uint8_t rotations_right = 0;
+static PT_THREAD(lineFollow(struct pt *pt)) {
+  static int left, right, center, lineStatus;
 
-int iterator = 0;
+  PT_BEGIN(pt);
 
-void Forward3ft() {
-  count_left = 0;
-  analogWrite(MotorPWM_A, base_left_speed);
-  analogWrite(MotorPWM_B, base_right_speed);
+  while (1) {
+    left = digitalRead(LINE_SENSOR_LEFT);
+    center = digitalRead(LINE_SENSOR_CENTER);
+    right = digitalRead(LINE_SENSOR_RIGHT);
 
-  // Left Motor
-  digitalWrite(INA1A, HIGH);
-  digitalWrite(INA2A, LOW);
+    lineStatus = (left << 2) | (center << 1) | right;
 
-  // Right Motor
-  digitalWrite(INA1B, HIGH);
-  digitalWrite(INA2B, LOW);
-
-  while (float(count_left) / countPerRotation < float(line_length) / float(wheelCircumference)) {
-    nonblockingDelay(10);
+    switch (lineStatus) {
+      case 0b001:
+        Serial.println("Right");
+        left_speed = base_left_speed + 50;
+        right_speed = base_right_speed;
+        break;
+      case 0b011:
+        Serial.println("RIGHT");
+        left_speed = base_left_speed + 50;
+        right_speed = base_right_speed;
+        break;
+      case 0b100:
+        Serial.println("Left");
+        left_speed = base_left_speed;
+        right_speed = base_right_speed + 50;
+        break;
+      case 0b110:
+        Serial.println("LEFT");
+        left_speed = base_left_speed;
+        right_speed = base_right_speed + 50;
+        break;
+      case 0b000:
+      case 0b010:
+        Serial.println("FORWARD");
+        left_speed = base_left_speed;
+        right_speed = base_right_speed;
+        break;
+      case 0b101:
+      case 0b111:
+      default:
+        Serial.println("STOP");
+        left_speed = 0;
+        right_speed = 0;
+        brake();
+        break;
+    }
+    Forward();
+    PT_YIELD(pt);
   }
 
-  analogWrite(MotorPWM_A, 0);
-  analogWrite(MotorPWM_B, 0);
-
-  // Left Motor
-  digitalWrite(INA1A, HIGH);
-  digitalWrite(INA2A, LOW);
-
-  // Right Motor
-  digitalWrite(INA1B, HIGH);
-  digitalWrite(INA2B, LOW);
+  PT_END(pt);
 }
 
+Servo s;
+
 void setup() {
+  mphGauge.init();
   PT_INIT(&ptMusic);
+  
+  song.begin();
   PT_INIT(&ptLine);
   pinMode(MotorPWM_A, OUTPUT);
   pinMode(MotorPWM_B, OUTPUT);
+
   pinMode(INA1A, OUTPUT);
   pinMode(INA2A, OUTPUT);
   pinMode(INA1B, OUTPUT);
@@ -279,14 +357,24 @@ void setup() {
 
   pinMode(LEFT_ENCODER_FRONT, INPUT_PULLUP);
   pinMode(RIGHT_ENCODER_FRONT, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(LEFT_ENCODER_FRONT), ISRMotorLeft, FALLING);
-  attachInterrupt(digitalPinToInterrupt(RIGHT_ENCODER_FRONT), ISRMotorRight, FALLING);
+
   Serial.begin(BAUD_RATE);
   Serial.println("Starting");
+
   Serial3.begin(BAUD_RATE);
+  /*
+  float testVal;
+  for(int i = 0; i <= 255; i++){
+    delay(5);
+    testVal = i * 1.0f;
+    mphGauge.update(testVal);
+  }
+  */
 }
 
 void loop() {
+  PT_SCHEDULE(song.play(&ptMusic));
+  PT_SCHEDULE(lineSensor(&ptLine));
   if (Serial3.available()) {
     String msg = "";
     while (Serial3.available()) {
@@ -296,13 +384,29 @@ void loop() {
 
     Serial.println(msg);
   }
+
+  int distance;
+  // echoLocator.getDistance(&(echoLocator._ptDistance), &distance);
+  // Serial.println(distance);
+  //
+  for (int pos = 0; pos <= 180; pos += 5) {
+    s.write(pos);
+    delay(20);
+  }
+  for (int pos = 180; pos >= 0; pos -= 5) {
+    s.write(pos);
+    delay(20);
+  }
+  /*
   int left = digitalRead(LINE_SENSOR_LEFT);
   int center = digitalRead(LINE_SENSOR_CENTER);
   int right = digitalRead(LINE_SENSOR_RIGHT);
 
   int lineStatus = (left << 2) | (center << 1) | right;
-
-  Serial.println(lineStatus);
+  Serial.print("Line Status: ");
+  Serial.print(left);
+  Serial.print(center);
+  Serial.println(right);
   switch (lineStatus) {
     case 0b100:
       left_speed = base_left_speed;
@@ -330,8 +434,8 @@ void loop() {
     default:
       left_speed = 0;
       right_speed = 0;
-      brake();
+
       break;
-  }
+  }*/   
   Forward();
 }

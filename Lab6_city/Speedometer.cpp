@@ -1,29 +1,29 @@
 #include "Arduino.h"
-#include "Accelerometer.h"
+#include "Speedometer.h"
 #include <Wire.h>
 #include <math.h>
 
-Accelerometer::Accelerometer(uint8_t address)
+Speedometer::Speedometer(uint8_t address)
   : _address(address),
-    _pointX(32),
-    _pointY(32),
+    _pointX(64),
+    _pointY(64),
     _pointX1(0),
     _pointY1(0),
-    _width(64),
-    _height(32),
+    _width(128),
+    _height(64),
     _reset(-1),
     display(nullptr)
 {}
 
-void Accelerometer::init() {
+void Speedometer::init() {
   display = new Adafruit_SSD1306(_width, _height, &Wire, _reset);
   display->begin(SSD1306_SWITCHCAPVCC, _address);
   display->clearDisplay();
   display->display();
 }
 
-void Accelerometer::buildGauge() {
-  display->setCursor(0, 0);
+void Speedometer::buildGauge() {
+  
   static const uint8_t halfCircle64x32[] PROGMEM = {
       0x00,0x00,0x0F,0xFF,0xFF,0xF0,0x00,0x00,
       0x00,0x00,0x3F,0xFF,0xFF,0xFC,0x00,0x00,
@@ -58,31 +58,40 @@ void Accelerometer::buildGauge() {
       0x80,0x00,0x00,0x00,0x00,0x00,0x00,0x01,
       0x80,0x00,0x00,0x00,0x00,0x00,0x00,0x01
   };
+  display->setTextSize(1);
+  display->setTextColor(SSD1306_WHITE);
 
-  display->drawBitmap(0, 0, halfCircle64x32, 64, 32, SSD1306_WHITE);
+  display->setCursor(0, 48);
+  display->print("0");
+
+  display->setCursor(96, 48);
+  display->print("255");
+
+  display->drawBitmap(32, 32, halfCircle64x32, 64, 32, SSD1306_WHITE);
+  //display->setCursor(int16_t x, int16_t y)
 }
 
-void Accelerometer::update(int8_t RPM) {
+void Speedometer::update(float MPH) {
 
-  float angle = 180 - (RPM / 255.0) * 180;
+  float angle = 180.0f - (MPH / 255.0f) * 180.0f;
   
-
-  
-
-  
-  float rad = angle * PI / 180;
+  float rad = angle * PI / 180.0f;
 
   _pointX1 = _pointX + 28* cos(rad);
 
-  _pointY1 = _pointY + 28* sin(rad);
+  _pointY1 = _pointY - 28* sin(rad);
+  /*Serial.print("Point X: ");
+  Serial.println(_pointX1);
+  Serial.print("Point Y: ");
+  Serial.println(_pointY1);*/
   display->clearDisplay();
+  
   buildGauge();
   display->drawLine(_pointX, _pointY, _pointX1, _pointY1, SSD1306_WHITE);
-
   display->display();
 }
 
-void Accelerometer::clear() {
+void Speedometer::clear() {
   display->clearDisplay();
   display->display();
 }

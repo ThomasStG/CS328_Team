@@ -1,17 +1,17 @@
-#ifndef ACCELEROMETER_H
-#define ACCELEROMETER_H
+#ifndef SPEEDOMETER_H
+#define SPEEDOMETER_H
 
 #include <Arduino.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-class Accelerometer{
+class Speedometer{
   public:
-    Accelerometer(uint8_t address);
+    Speedometer(uint8_t address);
 
     void init();
     void buildGauge();
-    void update(int8_t RPM);
+    void update(float MPH);
     void clear();
   private:
     uint8_t _address;
