@@ -1,6 +1,7 @@
 #include "protothreads.h"
 #include "BlinkLight.h"
 #include "EchoLocator.h"
+#include "Speedometer.h"
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
@@ -14,7 +15,7 @@
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 32
 
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+#include "TheLionSleepsTonight.h"
 
 EchoLocator echoLocator(9, 10, 11);
 
@@ -31,6 +32,10 @@ int buzzer = 12;
 #define INA2A 34
 #define INA1B 30
 #define INA2B 36
+
+TheLionSleepsTonight song(12);
+
+Speedometer mphGauge(SCREEN_ADDRESS);
 
 //#define FRONT_LEFT_TURN 49
 BlinkLight frontLeftTurn(49, 100);
@@ -95,13 +100,21 @@ uint8_t right_speed = 70;
 uint8_t left_speed = 65;
 
 float startTime = 0;
-
 #define BAUD_RATE 9600
 
 // Method: Forward
 // Input: speed – value [0-255]
 // Rotate the motor in a clockwise fashion
 void Forward() {
+  float avg_speed = (left_speed + right_speed) / 2.0f;
+  mphGauge.update(avg_speed);
+
+  frontLeftHigh.on();
+  frontLeftLow.on();
+  frontRightHigh.on();
+  frontRightLow.on();
+
+
   analogWrite(MotorPWM_A, left_speed);
   analogWrite(MotorPWM_B, right_speed);
 
@@ -112,6 +125,64 @@ void Forward() {
   // Right Motor
   digitalWrite(INA1B, HIGH);
   digitalWrite(INA2B, LOW);
+}
+
+static PT_THREAD(lineSensor(struct pt *ptLine)) {
+  
+  PT_BEGIN(ptLine);
+  int left;
+  int center;
+  int right;
+  int lineStatus;
+  
+  while(1){
+    nonblockingDelay(5);
+    
+    left = digitalRead(LINE_SENSOR_LEFT);
+    center = digitalRead(LINE_SENSOR_CENTER);
+    right = digitalRead(LINE_SENSOR_RIGHT);
+    
+    lineStatus = (left << 2) | (center << 1) | right;
+    Serial.print("Line Status: ");
+    Serial.print(left);
+    Serial.print(center);
+    Serial.println(right);
+    switch (lineStatus) {
+      case 0b100:
+        left_speed = base_left_speed;
+        right_speed = 0;
+        break;
+      case 0b001:
+        left_speed = 0;
+        right_speed = base_right_speed;
+        break;
+      case 0b111:
+      case 0b010:
+        left_speed = base_left_speed;
+        right_speed = base_right_speed;
+        break;
+      case 0b011:
+        left_speed = base_left_speed / 2;
+        right_speed = base_right_speed;
+        break;
+      case 0b110:
+        left_speed = base_left_speed;
+        right_speed = base_right_speed / 2;
+        break;
+      case 0b101:
+      case 0b000:
+      default:
+        left_speed = 0;
+        right_speed = 0;
+
+        break;
+    }
+      
+    PT_YIELD(ptLine);
+  }
+ 
+  PT_END(ptLine);
+
 }
 
 static PT_THREAD(turnSignal(struct pt *pt)) {
@@ -187,6 +258,8 @@ void reverse() {
 }
 
 void brake() {
+  count_left = 0;
+  count_right = 0;
   rearRightBrake.on();
   rearLeftBrake.on();
 }
@@ -249,10 +322,10 @@ static PT_THREAD(lineFollow(struct pt *pt)) {
 Servo s;
 
 void setup() {
-  display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS);
-  display.clearDisplay();
-  display.display();
+  mphGauge.init();
   PT_INIT(&ptMusic);
+  
+  song.begin();
   PT_INIT(&ptLine);
   pinMode(MotorPWM_A, OUTPUT);
   pinMode(MotorPWM_B, OUTPUT);
@@ -289,9 +362,19 @@ void setup() {
   Serial.println("Starting");
 
   Serial3.begin(BAUD_RATE);
+  /*
+  float testVal;
+  for(int i = 0; i <= 255; i++){
+    delay(5);
+    testVal = i * 1.0f;
+    mphGauge.update(testVal);
+  }
+  */
 }
 
 void loop() {
+  PT_SCHEDULE(song.play(&ptMusic));
+  PT_SCHEDULE(lineSensor(&ptLine));
   if (Serial3.available()) {
     String msg = "";
     while (Serial3.available()) {
@@ -314,4 +397,45 @@ void loop() {
     s.write(pos);
     delay(20);
   }
+  /*
+  int left = digitalRead(LINE_SENSOR_LEFT);
+  int center = digitalRead(LINE_SENSOR_CENTER);
+  int right = digitalRead(LINE_SENSOR_RIGHT);
+
+  int lineStatus = (left << 2) | (center << 1) | right;
+  Serial.print("Line Status: ");
+  Serial.print(left);
+  Serial.print(center);
+  Serial.println(right);
+  switch (lineStatus) {
+    case 0b100:
+      left_speed = base_left_speed;
+      right_speed = 0;
+      break;
+    case 0b001:
+      left_speed = 0;
+      right_speed = base_right_speed;
+      break;
+    case 0b111:
+    case 0b010:
+      left_speed = base_left_speed;
+      right_speed = base_right_speed;
+      break;
+    case 0b011:
+      left_speed = base_left_speed / 2;
+      right_speed = base_right_speed;
+      break;
+    case 0b110:
+      left_speed = base_left_speed;
+      right_speed = base_right_speed / 2;
+      break;
+    case 0b101:
+    case 0b000:
+    default:
+      left_speed = 0;
+      right_speed = 0;
+
+      break;
+  }*/   
+  Forward();
 }
