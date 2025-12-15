@@ -136,7 +136,7 @@ static PT_THREAD(lineSensor(struct pt *ptLine)) {
   int lineStatus;
   
   while(1){
-    nonblockingDelay(5);
+    delay(5);
     
     left = digitalRead(LINE_SENSOR_LEFT);
     center = digitalRead(LINE_SENSOR_CENTER);
@@ -233,7 +233,7 @@ void leftTurn() {
 
   while (count_right < 100 * 3) {
     PT_SCHEDULE(turnSignal(&ptLine));
-    nonblockingDelay(10);
+    delay(10);
   }
 
   analogWrite(MotorPWM_A, 0);
@@ -252,7 +252,7 @@ void leftTurn() {
 void reverse() {
   rearRightRev.on();
   rearLeftRev.on();
-  nonblockingDelay(1000);
+  delay(1000);
   rearRightRev.off();
   rearLeftRev.off();
 }
