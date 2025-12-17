@@ -8,6 +8,8 @@
 #include <SPI.h>
 #include <Pixy2.h>
 #include "Music.h"
+#include <math.h>
+
 #define SCREEN_ADDRESS 0x3C
 #define OLED_RESET -1
 #include <Servo.h>
@@ -26,6 +28,7 @@ EchoLocator echoLocator(9, 10, 11);
 pt ptMusic;
 pt ptLine;
 pt ptCamera;
+pt ptLights;
 
 int buzzer = 12;
 #define INA1A 32
@@ -91,7 +94,7 @@ static volatile int16_t count_right = 0;
 float rotation = 3.125;
 float RPM = 0;
 
-uint8_t base_speed = 90;
+uint8_t base_speed = 70;
 
 uint8_t base_right_speed = 70;
 uint8_t base_left_speed = 65;
@@ -99,96 +102,40 @@ uint8_t base_left_speed = 65;
 uint8_t right_speed = 70;
 uint8_t left_speed = 65;
 
+float leftRatio = 1.0f;
+float rightRatio = 1.0f;
+
 float startTime = 0;
 #define BAUD_RATE 9600
 
-// Method: Forward
-// Input: speed – value [0-255]
-// Rotate the motor in a clockwise fashion
-void Forward() {
-  float avg_speed = (left_speed + right_speed) / 2.0f;
-  mphGauge.update(avg_speed);
 
-  frontLeftHigh.on();
-  frontLeftLow.on();
-  frontRightHigh.on();
-  frontRightLow.on();
+void setMotors(float leftRatio, float rightRatio) {
+    leftRatio  = constrain(leftRatio, -1.0f, 1.0f);
+    rightRatio = constrain(rightRatio, -1.0f, 1.0f);
+
+    int leftPWM  = (int)(base_speed * fabs(leftRatio));
+    int rightPWM = (int)(base_speed * fabs(rightRatio));
+
+    int avgPWM = leftPWM * rightPWM;
+    mphGauge.update(avgPWM);
 
 
-  analogWrite(MotorPWM_A, left_speed);
-  analogWrite(MotorPWM_B, right_speed);
+    analogWrite(MotorPWM_A, leftPWM);
+    analogWrite(MotorPWM_B, rightPWM);
 
-  // Left Motor
-  digitalWrite(INA1A, HIGH);
-  digitalWrite(INA2A, LOW);
 
-  // Right Motor
-  digitalWrite(INA1B, HIGH);
-  digitalWrite(INA2B, LOW);
+    digitalWrite(INA1A, leftRatio >= 0 ? HIGH : LOW);
+    digitalWrite(INA2A, leftRatio >= 0 ? LOW  : HIGH);
+    digitalWrite(INA1B, rightRatio >= 0 ? HIGH : LOW);
+    digitalWrite(INA2B, rightRatio >= 0 ? LOW  : HIGH);
 }
 
-static PT_THREAD(lineSensor(struct pt *ptLine)) {
-  
-  PT_BEGIN(ptLine);
-  int left;
-  int center;
-  int right;
-  int lineStatus;
-  
-  while(1){
-    delay(5);
-    
-    left = digitalRead(LINE_SENSOR_LEFT);
-    center = digitalRead(LINE_SENSOR_CENTER);
-    right = digitalRead(LINE_SENSOR_RIGHT);
-    
-    lineStatus = (left << 2) | (center << 1) | right;
-    Serial.print("Line Status: ");
-    Serial.print(left);
-    Serial.print(center);
-    Serial.println(right);
-    switch (lineStatus) {
-      case 0b100:
-        left_speed = base_left_speed;
-        right_speed = 0;
-        break;
-      case 0b001:
-        left_speed = 0;
-        right_speed = base_right_speed;
-        break;
-      case 0b111:
-      case 0b010:
-        left_speed = base_left_speed;
-        right_speed = base_right_speed;
-        break;
-      case 0b011:
-        left_speed = base_left_speed / 2;
-        right_speed = base_right_speed;
-        break;
-      case 0b110:
-        left_speed = base_left_speed;
-        right_speed = base_right_speed / 2;
-        break;
-      case 0b101:
-      case 0b000:
-      default:
-        left_speed = 0;
-        right_speed = 0;
-
-        break;
-    }
-      
-    PT_YIELD(ptLine);
-  }
- 
-  PT_END(ptLine);
-
-}
-
-static PT_THREAD(turnSignal(struct pt *pt)) {
 
 
-  PT_BEGIN(pt);
+static PT_THREAD(turnSignal(struct pt *pt1)) {
+
+
+  PT_BEGIN(pt1);
 
 
   while (1) {
@@ -208,13 +155,14 @@ static PT_THREAD(turnSignal(struct pt *pt)) {
     rearRightRev.update();
     rearLeftRev.update();
 
-    PT_YIELD(pt);
+    PT_YIELD(pt1);
   }
 
-  PT_END(pt);
+  PT_END(pt1);
 }
 
 unsigned long prevTime = 0;
+
 
 
 void leftTurn() {
@@ -264,66 +212,76 @@ void brake() {
   rearLeftBrake.on();
 }
 
-static PT_THREAD(lineFollow(struct pt *pt)) {
-  static int left, right, center, lineStatus;
+static PT_THREAD(lineFollow(struct pt *pt2)) {
+    static int left, center, right;
+    static int lastTurn = 0;  // -1 = left, +1 = right
 
-  PT_BEGIN(pt);
+    PT_BEGIN(pt2);
 
-  while (1) {
-    left = digitalRead(LINE_SENSOR_LEFT);
-    center = digitalRead(LINE_SENSOR_CENTER);
-    right = digitalRead(LINE_SENSOR_RIGHT);
+    while (1) {
+        left   = digitalRead(LINE_SENSOR_LEFT);
+        center = digitalRead(LINE_SENSOR_CENTER);
+        right  = digitalRead(LINE_SENSOR_RIGHT);
 
-    lineStatus = (left << 2) | (center << 1) | right;
+        int lineStatus = (left << 2) | (center << 1) | right;
 
-    switch (lineStatus) {
-      case 0b001:
-        Serial.println("Right");
-        left_speed = base_left_speed + 50;
-        right_speed = base_right_speed;
-        break;
-      case 0b011:
-        Serial.println("RIGHT");
-        left_speed = base_left_speed + 50;
-        right_speed = base_right_speed;
-        break;
-      case 0b100:
-        Serial.println("Left");
-        left_speed = base_left_speed;
-        right_speed = base_right_speed + 50;
-        break;
-      case 0b110:
-        Serial.println("LEFT");
-        left_speed = base_left_speed;
-        right_speed = base_right_speed + 50;
-        break;
-      case 0b000:
-      case 0b010:
-        Serial.println("FORWARD");
-        left_speed = base_left_speed;
-        right_speed = base_right_speed;
-        break;
-      case 0b101:
-      case 0b111:
-      default:
-        Serial.println("STOP");
-        left_speed = 0;
-        right_speed = 0;
-        brake();
-        break;
+        switch (lineStatus) {
+            case 0b001:
+                lastTurn = +1;
+                leftRatio  = 1.0f;   // left wheel forward
+                rightRatio = -0.9f;  // right wheel backward
+                break;
+            case 0b011:
+                lastTurn = +1;
+                leftRatio  = 1.0f;   // left wheel forward
+                rightRatio = -0.8f;  // right wheel backward
+                break;
+
+            // Line to the LEFT → turn left
+            case 0b100:
+                lastTurn = -1;
+                leftRatio  = -0.9f;  // left wheel backward
+                rightRatio = 1.0f;   // right wheel forward
+                break;
+            case 0b110:
+                lastTurn = -1;
+                leftRatio  = -0.8f;  // left wheel backward
+                rightRatio = 1.0f;   // right wheel forward
+                break;
+
+            //Forward
+            case 0b010:
+                leftRatio  = 1.0f;
+                rightRatio = 1.0f;
+                break;
+
+            //Redirection
+            case 0b000:
+                if (lastTurn > 0) {
+                    leftRatio  = 1.0f;
+                    rightRatio = -0.6f;
+                } else if (lastTurn < 0) {
+                    leftRatio  = -0.6f;
+                    rightRatio = 1.0f;
+                }
+                break;
+
+            default:
+                break;
+        }
+
+        setMotors(leftRatio, rightRatio);
+        PT_YIELD(pt2);
     }
-    Forward();
-    PT_YIELD(pt);
-  }
 
-  PT_END(pt);
+    PT_END(pt2);
 }
-
 Servo s;
 
 void setup() {
   mphGauge.init();
   PT_INIT(&ptMusic);
+  PT_INIT(&ptLights);
   
   song.begin();
   PT_INIT(&ptLine);
@@ -335,9 +293,9 @@ void setup() {
   pinMode(INA1B, OUTPUT);
   pinMode(INA2B, OUTPUT);
 
-  pinMode(LINE_SENSOR_LEFT, INPUT);
-  pinMode(LINE_SENSOR_CENTER, INPUT);
-  pinMode(LINE_SENSOR_RIGHT, INPUT);
+  pinMode(LINE_SENSOR_LEFT, INPUT_PULLUP);
+  pinMode(LINE_SENSOR_CENTER, INPUT_PULLUP);
+  pinMode(LINE_SENSOR_RIGHT, INPUT_PULLUP);
 
 
   frontRightTurn.begin();
@@ -348,7 +306,7 @@ void setup() {
   frontLeftHigh.begin();
   frontLeftLow.begin();
   frontRightHigh.begin();
-  frontLeftHigh.begin();
+  frontRightLow.begin();
 
   rearRightBrake.begin();
   rearLeftBrake.begin();
@@ -362,19 +320,12 @@ void setup() {
   Serial.println("Starting");
 
   Serial3.begin(BAUD_RATE);
-  /*
-  float testVal;
-  for(int i = 0; i <= 255; i++){
-    delay(5);
-    testVal = i * 1.0f;
-    mphGauge.update(testVal);
-  }
-  */
 }
 
 void loop() {
   PT_SCHEDULE(song.play(&ptMusic));
-  PT_SCHEDULE(lineSensor(&ptLine));
+  PT_SCHEDULE(lineFollow(&ptLine));
+  PT_SCHEDULE(turnSignal(&ptLights));
   if (Serial3.available()) {
     String msg = "";
     while (Serial3.available()) {
@@ -384,11 +335,16 @@ void loop() {
 
     Serial.println(msg);
   }
+  //setMotors(leftRatio, rightRatio);
+
+
 
   int distance;
   // echoLocator.getDistance(&(echoLocator._ptDistance), &distance);
   // Serial.println(distance);
   //
+
+  /*
   for (int pos = 0; pos <= 180; pos += 5) {
     s.write(pos);
     delay(20);
@@ -397,6 +353,7 @@ void loop() {
     s.write(pos);
     delay(20);
   }
+  */
   /*
   int left = digitalRead(LINE_SENSOR_LEFT);
   int center = digitalRead(LINE_SENSOR_CENTER);
@@ -437,5 +394,5 @@ void loop() {
 
       break;
   }*/   
-  Forward();
+  
 }
