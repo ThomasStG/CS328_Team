@@ -95,40 +95,39 @@
 
 const int lionMelody[] PROGMEM = {
 
-  NOTE_F4, 4, NOTE_G4, 4, NOTE_A4, 8, NOTE_G4, 4, NOTE_A4, 8,
-  NOTE_AS4, 4, NOTE_A4, 4, NOTE_G4, 8, NOTE_F4, 4, NOTE_G4, 8,
-  NOTE_A4, 4, NOTE_C4, 8, NOTE_C4, 4, NOTE_C4, 8, NOTE_C4, 4,
-  NOTE_C4, 1,
+    NOTE_F4,  4,  NOTE_G4,  4,  NOTE_A4,  8,  NOTE_G4,  4,  NOTE_A4,  8,
+    NOTE_AS4, 4,  NOTE_A4,  4,  NOTE_G4,  8,  NOTE_F4,  4,  NOTE_G4,  8,
+    NOTE_A4,  4,  NOTE_C4,  8,  NOTE_C4,  4,  NOTE_C4,  8,  NOTE_C4,  4,
+    NOTE_C4,  1,
 
-  
-  NOTE_F4, 4, NOTE_G4, 4, NOTE_A4, 8, NOTE_G4, 4, NOTE_A4, 8,
-  NOTE_AS4, 4, NOTE_A4, 4, NOTE_G4, 8, NOTE_F4, 4, NOTE_G4, 8,
-  NOTE_A4, 4, NOTE_C4, 8, NOTE_C4, 4, NOTE_C4, 8, NOTE_C4, 4,
-  NOTE_C4, -2, REST, -8, NOTE_A4, 16,
+    NOTE_F4,  4,  NOTE_G4,  4,  NOTE_A4,  8,  NOTE_G4,  4,  NOTE_A4,  8,
+    NOTE_AS4, 4,  NOTE_A4,  4,  NOTE_G4,  8,  NOTE_F4,  4,  NOTE_G4,  8,
+    NOTE_A4,  4,  NOTE_C4,  8,  NOTE_C4,  4,  NOTE_C4,  8,  NOTE_C4,  4,
+    NOTE_C4,  -2, REST,     -8, NOTE_A4,  16,
 
-  
-  NOTE_A4, -8, NOTE_A4, 16, NOTE_A4, -8, NOTE_A4, 16,
-  NOTE_A4, -8, NOTE_A4, 16, NOTE_A4, -8, NOTE_A4, 16,
+    NOTE_A4,  -8, NOTE_A4,  16, NOTE_A4,  -8, NOTE_A4,  16, NOTE_A4,  -8,
+    NOTE_A4,  16, NOTE_A4,  -8, NOTE_A4,  16,
 
-  NOTE_AS4, -8, NOTE_AS4, 16, NOTE_AS4, -8, NOTE_AS4, 16,
-  NOTE_AS4, -8, NOTE_AS4, 16, NOTE_AS4, -8, NOTE_AS4, 16,
+    NOTE_AS4, -8, NOTE_AS4, 16, NOTE_AS4, -8, NOTE_AS4, 16, NOTE_AS4, -8,
+    NOTE_AS4, 16, NOTE_AS4, -8, NOTE_AS4, 16,
 
-  NOTE_A4, -8, NOTE_A4, 16, NOTE_A4, -8, NOTE_A4, 16,
-  NOTE_A4, -8, NOTE_A4, 16, NOTE_A4, -8, NOTE_A4, 16,
+    NOTE_A4,  -8, NOTE_A4,  16, NOTE_A4,  -8, NOTE_A4,  16, NOTE_A4,  -8,
+    NOTE_A4,  16, NOTE_A4,  -8, NOTE_A4,  16,
 
-  NOTE_G4, -8, NOTE_G4, 16, NOTE_G4, -8, NOTE_G4, 16,
-  NOTE_G4, -8, NOTE_G4, 16, NOTE_G4, -8, NOTE_G4, 16,
+    NOTE_G4,  -8, NOTE_G4,  16, NOTE_G4,  -8, NOTE_G4,  16, NOTE_G4,  -8,
+    NOTE_G4,  16, NOTE_G4,  -8, NOTE_G4,  16,
 
-  NOTE_A4, -8, NOTE_A4, 16, NOTE_A4, -8, NOTE_A4, 16,
-  NOTE_A4, -8, NOTE_A4, 16, NOTE_A4, -8, NOTE_A4, 16,
+    NOTE_A4,  -8, NOTE_A4,  16, NOTE_A4,  -8, NOTE_A4,  16, NOTE_A4,  -8,
+    NOTE_A4,  16, NOTE_A4,  -8, NOTE_A4,  16,
 
 };
 
+// Simple constructor to set the buzzer pin and initialize the melody
 TheLionSleepsTonight::TheLionSleepsTonight(uint8_t buzzerPin)
     : Music(buzzerPin) {
 
-    melody = lionMelody;
-    notes = sizeof(lionMelody) / sizeof(lionMelody[0]) / 2;
-    tempo = 122;
-    wholenote = (60000 * 4) / tempo;
+  melody = lionMelody;
+  notes = sizeof(lionMelody) / sizeof(lionMelody[0]) / 2;
+  tempo = 122;
+  wholenote = (60000 * 4) / tempo;
 }

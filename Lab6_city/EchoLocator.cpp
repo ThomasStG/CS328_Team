@@ -1,5 +1,6 @@
 #include "EchoLocator.h"
 
+// Constructor to initalize the class and necessary pins
 EchoLocator::EchoLocator(int trigPin, int echoPin, int motorPin)
     : _trigPin(trigPin), _echoPin(echoPin), _motorPin(motorPin) {
   PT_INIT(&_ptDistance);
@@ -11,6 +12,7 @@ EchoLocator::EchoLocator(int trigPin, int echoPin, int motorPin)
   pinMode(_echoPin, INPUT);
 }
 
+// Thread to get the distance from the ultrasonic sensor blocking
 PT_THREAD(EchoLocator::getDistance(struct pt *pt, int *result)) {
   PT_BEGIN(pt);
 
@@ -31,6 +33,7 @@ PT_THREAD(EchoLocator::getDistance(struct pt *pt, int *result)) {
   PT_END(pt);
 }
 
+// Old code to Search with the ultrasonic sensor blocking
 void EchoLocator::search() {
   int distanceMid, distanceRight, distanceLeft;
   _motor.write(90);
@@ -52,20 +55,4 @@ void EchoLocator::search() {
   } else if (distanceLeft > distanceRight && distanceLeft > distanceMid) {
     Serial.println("Left");
   }
-}
-
-int EchoLocator::getDistanceBlocking() {
-  long duration;
-
-  digitalWrite(_trigPin, LOW);
-  delayMicroseconds(2);
-
-  digitalWrite(_trigPin, HIGH);
-  delayMicroseconds(10);
-
-  digitalWrite(_trigPin, LOW);
-
-  duration = pulseIn(_echoPin, HIGH, 2000);
-
-  return duration * 0.034 / 2;
 }

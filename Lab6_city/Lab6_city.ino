@@ -85,7 +85,6 @@ const uint8_t countPerRotation = 180;
 const uint8_t wheelCircumference = 223.84;  //mm
 const uint32_t line_length = 600.14;
 
-
 static volatile int16_t count_left = 0;
 static volatile int16_t count_right = 0;
 
@@ -111,13 +110,7 @@ float startTime = 0;
 #define BAUD_RATE 9600
 
 
-void nonblockingDelay(unsigned long ms) {
-  unsigned long startTime = millis();
-  while (millis() - startTime < ms) {
-    yield();
-  }
-}
-
+// Sets the speed of both motors based on a ratio of the baseSpeed
 void setMotors(float leftRatio, float rightRatio) {
     frontLeftLow.on();
     frontRightLow.on();
@@ -143,8 +136,8 @@ void setMotors(float leftRatio, float rightRatio) {
 
 
 
+// Sets up the turn signal lights on a protothread
 static PT_THREAD(turnSignal(struct pt *pt1)) {
-
 
   PT_BEGIN(pt1);
 
@@ -174,8 +167,7 @@ static PT_THREAD(turnSignal(struct pt *pt1)) {
 
 unsigned long prevTime = 0;
 
-
-
+// Turns the car left
 void leftTurn() {
   count_right = 0;
   frontLeftTurn.on();
@@ -193,6 +185,7 @@ void leftTurn() {
   rearLeftTurn.off();
 }
 
+// Sets the car in reverse for 1 second
 void reverse() {
   rearRightRev.on();
   rearLeftRev.on();
@@ -201,6 +194,7 @@ void reverse() {
   rearLeftRev.off();
 }
 
+// turns on the break lights
 void brake() {
   count_left = 0;
   count_right = 0;
@@ -208,6 +202,7 @@ void brake() {
   rearLeftBrake.on();
 }
 
+// Protothread to follow the line
 static PT_THREAD(lineFollow(struct pt *pt2)) {
     static int left, center, right;
     static int lastTurn = 0;  // -1 = left, +1 = right
@@ -298,6 +293,7 @@ static PT_THREAD(lineFollow(struct pt *pt2)) {
 }
 Servo s;
 
+// Setup function to initialize all pins and protothreads
 void setup() {
   mphGauge.init();
   PT_INIT(&ptMusic);
@@ -343,77 +339,9 @@ void setup() {
   Serial3.begin(BAUD_RATE);
 }
 
+// Loop function to run all protothreads and 
 void loop() {
   PT_SCHEDULE(song.play(&ptMusic));
   PT_SCHEDULE(lineFollow(&ptLine));
   PT_SCHEDULE(turnSignal(&ptLights));
-  if (Serial3.available()) {
-    String msg = "";
-    while (Serial3.available()) {
-      char c = Serial3.read();
-      msg += c;
-    }
-
-    Serial.println(msg);
-  }
-  //setMotors(leftRatio, rightRatio);
-
-
-
-  int distance;
-  // echoLocator.getDistance(&(echoLocator._ptDistance), &distance);
-  // Serial.println(distance);
-  //
-
-  /*
-  for (int pos = 0; pos <= 180; pos += 5) {
-    s.write(pos);
-    delay(20);
-  }
-  for (int pos = 180; pos >= 0; pos -= 5) {
-    s.write(pos);
-    delay(20);
-  }
-  */
-  /*
-  int left = digitalRead(LINE_SENSOR_LEFT);
-  int center = digitalRead(LINE_SENSOR_CENTER);
-  int right = digitalRead(LINE_SENSOR_RIGHT);
-
-  int lineStatus = (left << 2) | (center << 1) | right;
-  Serial.print("Line Status: ");
-  Serial.print(left);
-  Serial.print(center);
-  Serial.println(right);
-  switch (lineStatus) {
-    case 0b100:
-      left_speed = base_left_speed;
-      right_speed = 0;
-      break;
-    case 0b001:
-      left_speed = 0;
-      right_speed = base_right_speed;
-      break;
-    case 0b111:
-    case 0b010:
-      left_speed = base_left_speed;
-      right_speed = base_right_speed;
-      break;
-    case 0b011:
-      left_speed = base_left_speed / 2;
-      right_speed = base_right_speed;
-      break;
-    case 0b110:
-      left_speed = base_left_speed;
-      right_speed = base_right_speed / 2;
-      break;
-    case 0b101:
-    case 0b000:
-    default:
-      left_speed = 0;
-      right_speed = 0;
-
-      break;
-  }*/   
-  
 }
