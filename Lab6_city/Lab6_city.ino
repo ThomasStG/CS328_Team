@@ -34,7 +34,7 @@ struct pt ptBlink;
 struct pt ptLights;
 
 bool searchActive = false;
-int searchResult = 0;
+int searchResult = -1;
 
 /***************************************/
 // This is the Interrupt Service Routine
@@ -334,9 +334,8 @@ void setup() {
 }
 
 void loop() {
-  PT_SCHEDULE(song.play(&ptMusic));
 
-  PT_SCHEDULE(turnSignal(&ptLights));
+  // PT_SCHEDULE(turnSignal(&ptLights));
 
   if (Serial3.available()) {
     String msg = "";
@@ -348,18 +347,30 @@ void loop() {
 
   static unsigned long lastSearch = 0;
   if (searchActive && millis() - lastSearch >= 100) {
+      Serial.println(searchActive);
       
       lastSearch = millis();
-      searchActive = PT_SCHEDULE(echoLocator.search(&ptEcho, searchResult));
+      PT_INIT(&ptEcho);
+      if (!PT_SCHEDULE(echoLocator.search(&ptEcho, searchResult))){
+        if (searchResult == 0) {
+          // turn right
+        }
+        else{
+          // turn right
+        }
+        searchActive = false;
+      }
   }
   if (!searchActive) {
-    PT_SCHEDULE(lineFollow(&ptLine));
+    // PT_SCHEDULE(lineFollow(&ptLine));
+    PT_SCHEDULE(song.play(&ptMusic));
   }
   //setMotors(leftRatio, rightRatio);
 
   double distance = -1; 
-  PT_SCHEDULE(echoLocator.getDistance(&ptEcho, &distance));
-  if (distance > 0 && distance < 100) {
-    searchActive = true;
+  if (!PT_SCHEDULE(echoLocator.getDistance(&ptEcho, &distance)) && distance > 0) {
+    if (distance < 14) {
+      searchActive = true;
+    }
   }
 }

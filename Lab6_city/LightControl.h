@@ -20,7 +20,6 @@ static PT_THREAD(turnSignal(struct pt *pt)) {
   PT_BEGIN(pt);
 
   while (1) {
-    Serial.println("Updating lights");
     frontRightTurn.update();
     frontLeftTurn.update();
     rearRightTurn.update();

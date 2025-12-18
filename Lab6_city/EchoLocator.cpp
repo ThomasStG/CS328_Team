@@ -111,9 +111,9 @@ PT_THREAD(EchoLocator::search(struct pt *pt, int *result)) {
         break;
 
       if (right > left && right > mid) {
-        Serial.println("Right");
+        *result = 0;
       } else if (left > right && left > mid) {
-        Serial.println("Left");
+        *result = 1;
       }
       PT_EXIT(pt);
     }
@@ -122,20 +122,4 @@ PT_THREAD(EchoLocator::search(struct pt *pt, int *result)) {
   }
 
   PT_END(pt);
-}
-
-int EchoLocator::getDistanceBlocking() {
-  long duration;
-
-  digitalWrite(_trigPin, LOW);
-  delayMicroseconds(2);
-
-  digitalWrite(_trigPin, HIGH);
-  delayMicroseconds(10);
-
-  digitalWrite(_trigPin, LOW);
-
-  duration = pulseIn(_echoPin, HIGH, 2000);
-
-  return duration * 0.034 / 2;
 }
