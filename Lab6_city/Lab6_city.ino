@@ -105,11 +105,22 @@ uint8_t left_speed = 65;
 float leftRatio = 1.0f;
 float rightRatio = 1.0f;
 
+bool is_turning = false;
+
 float startTime = 0;
 #define BAUD_RATE 9600
 
 
+void nonblockingDelay(unsigned long ms) {
+  unsigned long startTime = millis();
+  while (millis() - startTime < ms) {
+    yield();
+  }
+}
+
 void setMotors(float leftRatio, float rightRatio) {
+    frontLeftLow.on();
+    frontRightLow.on();
     leftRatio  = constrain(leftRatio, -1.0f, 1.0f);
     rightRatio = constrain(rightRatio, -1.0f, 1.0f);
 
@@ -169,29 +180,14 @@ void leftTurn() {
   count_right = 0;
   frontLeftTurn.on();
   rearLeftTurn.on();
-  analogWrite(MotorPWM_A, 0);
-  analogWrite(MotorPWM_B, 215);
-
-  // Left Motor
-  digitalWrite(INA1A, HIGH);
-  digitalWrite(INA2A, LOW);
-  // Right Motor
-  digitalWrite(INA1B, HIGH);
-  digitalWrite(INA2B, LOW);
-
-  while (count_right < 100 * 3) {
-    PT_SCHEDULE(turnSignal(&ptLine));
-    delay(10);
-  }
-
-  analogWrite(MotorPWM_A, 0);
-  analogWrite(MotorPWM_B, 0);
-  // Left Motor
-  digitalWrite(INA1A, HIGH);
-  digitalWrite(INA2A, LOW);
-  // Right Motor
-  digitalWrite(INA1B, HIGH);
-  digitalWrite(INA2B, LOW);
+  
+  is_turning = true;
+  leftRatio  = -0.9f;
+  rightRatio = 1.0f;
+  nonblockingDelay(500);
+  is_turning = false;
+  
+  
 
   frontLeftTurn.off();
   rearLeftTurn.off();
@@ -227,11 +223,19 @@ static PT_THREAD(lineFollow(struct pt *pt2)) {
 
         switch (lineStatus) {
             case 0b001:
+                frontRightTurn.on();
+                rearRightTurn.on();
+                frontLeftTurn.off();
+                rearLeftTurn.off();
                 lastTurn = +1;
                 leftRatio  = 1.0f;   // left wheel forward
                 rightRatio = -0.9f;  // right wheel backward
                 break;
             case 0b011:
+                frontRightTurn.on();
+                rearRightTurn.on();
+                frontLeftTurn.off();
+                rearLeftTurn.off();
                 lastTurn = +1;
                 leftRatio  = 1.0f;   // left wheel forward
                 rightRatio = -0.8f;  // right wheel backward
@@ -239,11 +243,19 @@ static PT_THREAD(lineFollow(struct pt *pt2)) {
 
             // Line to the LEFT → turn left
             case 0b100:
+                frontLeftTurn.on();
+                rearLeftTurn.on();
+                frontRightTurn.off();
+                rearRightTurn.off();
                 lastTurn = -1;
                 leftRatio  = -0.9f;  // left wheel backward
                 rightRatio = 1.0f;   // right wheel forward
                 break;
             case 0b110:
+                frontLeftTurn.on();
+                rearLeftTurn.on();
+                frontRightTurn.off();
+                rearRightTurn.off();
                 lastTurn = -1;
                 leftRatio  = -0.8f;  // left wheel backward
                 rightRatio = 1.0f;   // right wheel forward
@@ -251,12 +263,20 @@ static PT_THREAD(lineFollow(struct pt *pt2)) {
 
             //Forward
             case 0b010:
+                frontLeftTurn.off();
+                rearLeftTurn.off();
+                frontRightTurn.off();
+                rearRightTurn.off();
                 leftRatio  = 1.0f;
                 rightRatio = 1.0f;
                 break;
 
             //Redirection
             case 0b000:
+                frontLeftTurn.off();
+                rearLeftTurn.off();
+                frontRightTurn.off();
+                rearRightTurn.off();
                 if (lastTurn > 0) {
                     leftRatio  = 1.0f;
                     rightRatio = -0.6f;
@@ -282,9 +302,10 @@ void setup() {
   mphGauge.init();
   PT_INIT(&ptMusic);
   PT_INIT(&ptLights);
+  PT_INIT(&ptLine);
   
   song.begin();
-  PT_INIT(&ptLine);
+  
   pinMode(MotorPWM_A, OUTPUT);
   pinMode(MotorPWM_B, OUTPUT);
 
