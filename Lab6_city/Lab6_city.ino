@@ -22,24 +22,7 @@
 
 EchoLocator echoLocator(SONAR_TRIGGER, SONAR_ECHO);
 TheLionSleepsTonight song(BUZZER);
-EchoLocator echoLocator(9, 10, 11);
 
-// Pins for all inputs, keep in mind the PWM defines must be on PWM pins
-#define MotorPWM_A 4  //left motor
-#define MotorPWM_B 5  //right motor
-
-pt ptMusic;
-pt ptLine;
-pt ptCamera;
-pt ptLights;
-
-int buzzer = 12;
-#define INA1A 32
-#define INA2A 34
-#define INA1B 30
-#define INA2B 36
-
-TheLionSleepsTonight song(12);
 
 Speedometer mphGauge(SCREEN_ADDRESS);
 
@@ -47,6 +30,8 @@ struct pt ptMusic;
 struct pt ptLine;
 struct pt ptEcho;
 struct pt ptEchoServo;
+struct pt ptBlink;
+struct pt ptLights;
 
 bool searchActive = false;
 int searchResult = 0;
@@ -189,72 +174,22 @@ void setMotors(float leftRatio, float rightRatio) {
     digitalWrite(INA2B, rightRatio >= 0 ? LOW  : HIGH);
 }
 
-
-
-static PT_THREAD(turnSignal(struct pt *pt1)) {
-
-
-  PT_BEGIN(pt1);
-
-
-  while (1) {
-    Serial.println("Updating lights");
-    frontRightTurn.update();
-    frontLeftTurn.update();
-    rearRightTurn.update();
-    rearLeftTurn.update();
-
-    frontLeftHigh.update();
-    frontLeftLow.update();
-    frontRightHigh.update();
-    frontLeftHigh.update();
-
-    rearRightBrake.update();
-    rearLeftBrake.update();
-    rearRightRev.update();
-    rearLeftRev.update();
-
-    PT_YIELD(pt1);
-  }
-
-  PT_END(pt1);
-}
-
 unsigned long prevTime = 0;
 
+// void leftTurn() {
+//   count_right = 0;
+//   frontLeftTurn.on();
+//   rearLeftTurn.on();
+//   
+//   is_turning = true;
+//   leftRatio  = -0.9f;
+//   rightRatio = 1.0f;
+//   nonblockingDelay(500);
+//   is_turning = false;
 
-
-void leftTurn() {
-  count_right = 0;
-  frontLeftTurn.on();
-  rearLeftTurn.on();
-  
-  is_turning = true;
-  leftRatio  = -0.9f;
-  rightRatio = 1.0f;
-  nonblockingDelay(500);
-  is_turning = false;
-  
-  
-
-  frontLeftTurn.off();
-  rearLeftTurn.off();
-}
-
-void reverse() {
-  rearRightRev.on();
-  rearLeftRev.on();
-  delay(1000);
-  rearRightRev.off();
-  rearLeftRev.off();
-}
-
-void brake() {
-  count_left = 0;
-  count_right = 0;
-  rearRightBrake.on();
-  rearLeftBrake.on();
-}
+//   frontLeftTurn.off();
+//   rearLeftTurn.off();
+// }
 
 static PT_THREAD(lineFollow(struct pt *pt2)) {
     static int left, center, right;
@@ -390,42 +325,26 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(RIGHT_ENCODER_FRONT), ISRMotorRight, FALLING);
 
   Serial.begin(BAUD_RATE);
+  Serial3.begin(BAUD_RATE);
   Serial.println("Starting");
 
-  Serial3.begin(BAUD_RATE);
-  /*
-  float testVal;
-  for(int i = 0; i <= 255; i++){
-    delay(5);
-    testVal = i * 1.0f;
-    mphGauge.update(testVal);
-  }
-  */
   servo.attach(4);
   servo.write(70);
   echoLocator.setMotor(&servo);
 }
 
 void loop() {
-  // if (Serial3.available()) {
-  //   String msg = "";
-  //   while (Serial3.available()) {
-  //     char c = Serial3.read();
-  //     msg += c;
-  //   }
-
-  //   Serial.println(msg);
-  // }
-  
   PT_SCHEDULE(song.play(&ptMusic));
-  PT_SCHEDULE(lineFollow(&ptLine));
+
   PT_SCHEDULE(turnSignal(&ptLights));
+
   if (Serial3.available()) {
     String msg = "";
     while (Serial3.available()) {
       char c = Serial3.read();
       msg += c;
     }
+  }
 
   static unsigned long lastSearch = 0;
   if (searchActive && millis() - lastSearch >= 100) {
@@ -438,9 +357,7 @@ void loop() {
   }
   //setMotors(leftRatio, rightRatio);
 
-
-
-  long double = -1; 
+  double distance = -1; 
   PT_SCHEDULE(echoLocator.getDistance(&ptEcho, &distance));
   if (distance > 0 && distance < 100) {
     searchActive = true;

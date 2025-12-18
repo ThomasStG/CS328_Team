@@ -9,7 +9,7 @@ class EchoLocator {
 public:
   EchoLocator(int trigPin = 11, int echoPin = 9, int motorPin = 10);
 
-  PT_THREAD(getDistance(struct pt *pt, int *result));
+  PT_THREAD(getDistance(struct pt *pt, double *result));
 
   PT_THREAD(search(struct pt *pt, int *result));
 

@@ -55,7 +55,7 @@ PT_THREAD(EchoLocator::getDistance(struct pt *pt, double *result)) {
 PT_THREAD(EchoLocator::search(struct pt *pt, int *result)) {
   static unsigned long t;
   static int state;
-  static int mid, right, left;
+  static double mid, right, left;
 
   PT_BEGIN(pt);
   state = 0;

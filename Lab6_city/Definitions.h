@@ -50,6 +50,8 @@ extern volatile int16_t count_right;
 extern uint8_t base_right_speed;
 extern uint8_t base_left_speed;
 
+extern uint8_t base_speed;
+
 extern uint8_t right_speed;
 extern uint8_t left_speed;
 
@@ -57,4 +59,6 @@ extern struct pt ptMusic;
 extern struct pt ptLine;
 extern struct pt ptEcho;
 extern struct pt ptEchoServo;
+extern struct pt ptBlink;
+extern struct pt ptLights;
 #endif
