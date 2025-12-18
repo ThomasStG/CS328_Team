@@ -1,30 +1,31 @@
 #ifndef MUSIC_H
 #define MUSIC_H
 
-#include <Arduino.h>
+#include "Definitions.h"
 #include "protothreads.h"
+#include <Arduino.h>
 
 class Music {
 public:
-    Music(uint8_t pin);
+  Music(uint8_t pin);
 
-    void begin();
-    PT_THREAD(play(struct pt *pt));
-    void stop();
+  void begin();
+  PT_THREAD(play(struct pt *pt));
+  void stop();
 
 protected:
-    const int *melody;
-    int notes;
-    int tempo;
-    int wholenote;
+  const int *melody;
+  int notes;
+  int tempo;
+  int wholenote;
 
-    uint8_t buzzer;
+  uint8_t buzzer;
 
-    // protothread state
-    int thisNote;
-    int divider;
-    int noteDuration;
-    unsigned long timer;
+  // protothread state
+  int thisNote;
+  int divider;
+  int noteDuration;
+  unsigned long timer;
 };
 
 #endif

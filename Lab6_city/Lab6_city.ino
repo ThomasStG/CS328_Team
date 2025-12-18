@@ -1,7 +1,3 @@
-#include "protothreads.h"
-#include "BlinkLight.h"
-#include "EchoLocator.h"
-#include "Speedometer.h"
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
@@ -14,94 +10,131 @@
 #define OLED_RESET -1
 #include <Servo.h>
 
-#define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 32
+#include "protothreads.h"
+#include "Definitions.h"
+#include "BlinkLight.h"
+#include "EchoLocator.h"
+#include "Speedometer.h"
+#include "LightControl.h"
 
+#include "Music.h"
 #include "TheLionSleepsTonight.h"
 
-EchoLocator echoLocator(9, 10, 11);
+EchoLocator echoLocator(SONAR_TRIGGER, SONAR_ECHO);
+TheLionSleepsTonight song(BUZZER);
 
-// Pins for all inputs, keep in mind the PWM defines must be on PWM pins
-#define MotorPWM_A 4  //left motor
-#define MotorPWM_B 5  //right motor
-
-pt ptMusic;
-pt ptLine;
-pt ptCamera;
-pt ptLights;
-
-int buzzer = 12;
-#define INA1A 32
-#define INA2A 34
-#define INA1B 30
-#define INA2B 36
-
-TheLionSleepsTonight song(12);
 
 Speedometer mphGauge(SCREEN_ADDRESS);
 
-//#define FRONT_LEFT_TURN 49
-BlinkLight frontLeftTurn(49, 100);
-//#define FRONT_LEFT_HIGH 47
-BlinkLight frontLeftHigh(47, 0);
-//#define FRONT_LEFT_LOW 45
-BlinkLight frontLeftLow(45, 0);
-//#define FRONT_RIGHT_TURN 43
-BlinkLight frontRightTurn(43, 100);
-//#define FRONT_RIGHT_HIGH 41
-BlinkLight frontRightHigh(41, 0);
-//#define FRONT_RIGHT_LOW 39
-BlinkLight frontRightLow(39, 0);
-//#define REAR_RIGHT_TURN 37
-BlinkLight rearRightTurn(37, 100);
-//#define REAR_RIGHT_REVERSE 35
-BlinkLight rearRightRev(35, 0);
-//#define REAR_RIGHT_BRAKE 33
-BlinkLight rearRightBrake(33, 0);
-//#define REAR_LEFT_TURN 31
-BlinkLight rearLeftTurn(31, 100);
-//#define REAR_LEFT_REVERSE 29
-BlinkLight rearLeftRev(29, 0);
-//#define REAR_LEFT_BREAK 27
-BlinkLight rearLeftBrake(27, 0);
+struct pt ptMusic;
+struct pt ptLine;
+struct pt ptEcho;
+struct pt ptEchoServo;
+struct pt ptBlink;
+struct pt ptLights;
 
-#define LEFT_ENCODER_FRONT 2
-#define LEFT_ENCODER_REAR 3
+bool searchActive = false;
+int searchResult = -1;
 
-#define RIGHT_ENCODER_FRONT 18
-#define RIGHT_ENCODER_REAR 19
+/***************************************/
+// This is the Interrupt Service Routine
+// for the left motor.
+/***************************************/
+void ISRMotorLeft() {
+  count_left++;
+}
 
-#define SONAR_ECHO 9
-#define SONAR_TRIGGER 10
-#define SONAR_MOTOR 11
+void ISRMotorRight() {
+  count_right++;
+}
 
-#define BUTTON_TWO 12
+/**
+ * Function to turn right by 90 degrees and turn on the turn signal
+ */
+PT_THREAD(turnRight(struct pt *pt)) {
+  PT_BEGIN(pt);
+  // reset count_right to correctly count turn distance
+  count_right = 0;
+  //Enable Blinking lights
+  frontLeftTurn.on();
+  rearLeftTurn.on();
+  // Set left motor to stopa nd right motor to accelerate
+  analogWrite(MotorPWM_A, 215);
+  analogWrite(MotorPWM_B, 0);
 
-#define LINE_SENSOR_LEFT 8
-#define LINE_SENSOR_CENTER 7
-#define LINE_SENSOR_RIGHT 6
+  // Left Motor
+  digitalWrite(INA1A, HIGH);
+  digitalWrite(INA2A, LOW);
+  // Right Motor
+  digitalWrite(INA1B, HIGH);
+  digitalWrite(INA2B, LOW);
 
-const uint8_t countPerRotation = 180;
-const uint8_t wheelCircumference = 223.84;  //mm
-const uint32_t line_length = 600.14;
+  // Measure rotations and blink leds
+  while (count_right < 100 * 3) {
+    //Update blinking lights
+    PT_SCHEDULE(turnSignal(&ptBlink));
+    PT_YIELD(pt);
+  }
 
+  // Reset wheel speeds
+  analogWrite(MotorPWM_A, 0);
+  analogWrite(MotorPWM_B, 0);
+  // Left Motor
+  digitalWrite(INA1A, HIGH);
+  digitalWrite(INA2A, LOW);
+  // Right Motor
+  digitalWrite(INA1B, HIGH);
+  digitalWrite(INA2B, LOW);
 
-static volatile int16_t count_left = 0;
-static volatile int16_t count_right = 0;
+  frontLeftTurn.off();
+  rearLeftTurn.off();
 
+  PT_END(pt);
+}
 
-// 3.215 = (60sec/0.1sec)/(48gear ratio * 4pulses/rev)
-float rotation = 3.125;
-float RPM = 0;
+/**
+ * Function to turn left by 90 degrees and turn on the turn signal
+ */
+PT_THREAD(turnLeft(struct pt *pt)) {
+  PT_BEGIN(pt);
+  // reset count_right to correctly count turn distance
+  count_right = 0;
+  //Enable Blinking lights
+  frontLeftTurn.on();
+  rearLeftTurn.on();
+  // Set left motor to stopa nd right motor to accelerate
+  analogWrite(MotorPWM_A, 0);
+  analogWrite(MotorPWM_B, 215);
 
-uint8_t base_speed = 70;
+  // Left Motor
+  digitalWrite(INA1A, HIGH);
+  digitalWrite(INA2A, LOW);
+  // Right Motor
+  digitalWrite(INA1B, HIGH);
+  digitalWrite(INA2B, LOW);
 
-uint8_t base_right_speed = 70;
-uint8_t base_left_speed = 65;
+  // Measure rotations and blink leds
+  while (count_right < 100 * 3) {
+    //Update blinking lights
+    PT_SCHEDULE(turnSignal(&ptBlink));
+    PT_YIELD(pt);
+  }
 
-uint8_t right_speed = 70;
-uint8_t left_speed = 65;
+  // Reset wheel speeds
+  analogWrite(MotorPWM_A, 0);
+  analogWrite(MotorPWM_B, 0);
+  // Left Motor
+  digitalWrite(INA1A, HIGH);
+  digitalWrite(INA2A, LOW);
+  // Right Motor
+  digitalWrite(INA1B, HIGH);
+  digitalWrite(INA2B, LOW);
 
+  frontLeftTurn.off();
+  rearLeftTurn.off();
+
+  PT_END(pt);
+}
 float leftRatio = 1.0f;
 float rightRatio = 1.0f;
 
@@ -141,72 +174,22 @@ void setMotors(float leftRatio, float rightRatio) {
     digitalWrite(INA2B, rightRatio >= 0 ? LOW  : HIGH);
 }
 
-
-
-static PT_THREAD(turnSignal(struct pt *pt1)) {
-
-
-  PT_BEGIN(pt1);
-
-
-  while (1) {
-    Serial.println("Updating lights");
-    frontRightTurn.update();
-    frontLeftTurn.update();
-    rearRightTurn.update();
-    rearLeftTurn.update();
-
-    frontLeftHigh.update();
-    frontLeftLow.update();
-    frontRightHigh.update();
-    frontLeftHigh.update();
-
-    rearRightBrake.update();
-    rearLeftBrake.update();
-    rearRightRev.update();
-    rearLeftRev.update();
-
-    PT_YIELD(pt1);
-  }
-
-  PT_END(pt1);
-}
-
 unsigned long prevTime = 0;
 
+// void leftTurn() {
+//   count_right = 0;
+//   frontLeftTurn.on();
+//   rearLeftTurn.on();
+//   
+//   is_turning = true;
+//   leftRatio  = -0.9f;
+//   rightRatio = 1.0f;
+//   nonblockingDelay(500);
+//   is_turning = false;
 
-
-void leftTurn() {
-  count_right = 0;
-  frontLeftTurn.on();
-  rearLeftTurn.on();
-  
-  is_turning = true;
-  leftRatio  = -0.9f;
-  rightRatio = 1.0f;
-  nonblockingDelay(500);
-  is_turning = false;
-  
-  
-
-  frontLeftTurn.off();
-  rearLeftTurn.off();
-}
-
-void reverse() {
-  rearRightRev.on();
-  rearLeftRev.on();
-  delay(1000);
-  rearRightRev.off();
-  rearLeftRev.off();
-}
-
-void brake() {
-  count_left = 0;
-  count_right = 0;
-  rearRightBrake.on();
-  rearLeftBrake.on();
-}
+//   frontLeftTurn.off();
+//   rearLeftTurn.off();
+// }
 
 static PT_THREAD(lineFollow(struct pt *pt2)) {
     static int left, center, right;
@@ -296,16 +279,18 @@ static PT_THREAD(lineFollow(struct pt *pt2)) {
 
     PT_END(pt2);
 }
-Servo s;
+
+Servo servo;
 
 void setup() {
   mphGauge.init();
   PT_INIT(&ptMusic);
-  PT_INIT(&ptLights);
   PT_INIT(&ptLine);
-  
+  PT_INIT(&ptEcho);
+  PT_INIT(&ptEchoServo);
+
   song.begin();
-  
+
   pinMode(MotorPWM_A, OUTPUT);
   pinMode(MotorPWM_B, OUTPUT);
 
@@ -317,7 +302,6 @@ void setup() {
   pinMode(LINE_SENSOR_LEFT, INPUT_PULLUP);
   pinMode(LINE_SENSOR_CENTER, INPUT_PULLUP);
   pinMode(LINE_SENSOR_RIGHT, INPUT_PULLUP);
-
 
   frontRightTurn.begin();
   frontLeftTurn.begin();
@@ -337,83 +321,56 @@ void setup() {
   pinMode(LEFT_ENCODER_FRONT, INPUT_PULLUP);
   pinMode(RIGHT_ENCODER_FRONT, INPUT_PULLUP);
 
+  attachInterrupt(digitalPinToInterrupt(LEFT_ENCODER_FRONT), ISRMotorLeft, FALLING);
+  attachInterrupt(digitalPinToInterrupt(RIGHT_ENCODER_FRONT), ISRMotorRight, FALLING);
+
   Serial.begin(BAUD_RATE);
+  Serial3.begin(BAUD_RATE);
   Serial.println("Starting");
 
-  Serial3.begin(BAUD_RATE);
+  servo.attach(4);
+  servo.write(70);
+  echoLocator.setMotor(&servo);
 }
 
 void loop() {
-  PT_SCHEDULE(song.play(&ptMusic));
-  PT_SCHEDULE(lineFollow(&ptLine));
-  PT_SCHEDULE(turnSignal(&ptLights));
+
+  // PT_SCHEDULE(turnSignal(&ptLights));
+
   if (Serial3.available()) {
     String msg = "";
     while (Serial3.available()) {
       char c = Serial3.read();
       msg += c;
     }
+  }
 
-    Serial.println(msg);
+  static unsigned long lastSearch = 0;
+  if (searchActive && millis() - lastSearch >= 100) {
+      Serial.println(searchActive);
+      
+      lastSearch = millis();
+      PT_INIT(&ptEcho);
+      if (!PT_SCHEDULE(echoLocator.search(&ptEcho, searchResult))){
+        if (searchResult == 0) {
+          // turn right
+        }
+        else{
+          // turn right
+        }
+        searchActive = false;
+      }
+  }
+  if (!searchActive) {
+    // PT_SCHEDULE(lineFollow(&ptLine));
+    PT_SCHEDULE(song.play(&ptMusic));
   }
   //setMotors(leftRatio, rightRatio);
 
-
-
-  int distance;
-  // echoLocator.getDistance(&(echoLocator._ptDistance), &distance);
-  // Serial.println(distance);
-  //
-
-  /*
-  for (int pos = 0; pos <= 180; pos += 5) {
-    s.write(pos);
-    delay(20);
+  double distance = -1; 
+  if (!PT_SCHEDULE(echoLocator.getDistance(&ptEcho, &distance)) && distance > 0) {
+    if (distance < 14) {
+      searchActive = true;
+    }
   }
-  for (int pos = 180; pos >= 0; pos -= 5) {
-    s.write(pos);
-    delay(20);
-  }
-  */
-  /*
-  int left = digitalRead(LINE_SENSOR_LEFT);
-  int center = digitalRead(LINE_SENSOR_CENTER);
-  int right = digitalRead(LINE_SENSOR_RIGHT);
-
-  int lineStatus = (left << 2) | (center << 1) | right;
-  Serial.print("Line Status: ");
-  Serial.print(left);
-  Serial.print(center);
-  Serial.println(right);
-  switch (lineStatus) {
-    case 0b100:
-      left_speed = base_left_speed;
-      right_speed = 0;
-      break;
-    case 0b001:
-      left_speed = 0;
-      right_speed = base_right_speed;
-      break;
-    case 0b111:
-    case 0b010:
-      left_speed = base_left_speed;
-      right_speed = base_right_speed;
-      break;
-    case 0b011:
-      left_speed = base_left_speed / 2;
-      right_speed = base_right_speed;
-      break;
-    case 0b110:
-      left_speed = base_left_speed;
-      right_speed = base_right_speed / 2;
-      break;
-    case 0b101:
-    case 0b000:
-    default:
-      left_speed = 0;
-      right_speed = 0;
-
-      break;
-  }*/   
-  
 }
