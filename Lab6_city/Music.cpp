@@ -28,8 +28,10 @@ PT_THREAD(Music::play(struct pt *pt)) {
     PT_BEGIN(pt);
 
     while (true) { 
+        //Restart to the first note at the beginning of the loop
         thisNote = 0; 
         while (thisNote < notes * 2) {
+            //Identify the divider numbers in the music Bitmap
             divider = pgm_read_word(&melody[thisNote + 1]);
 
             if (divider > 0) {

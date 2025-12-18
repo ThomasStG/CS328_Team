@@ -159,7 +159,7 @@ static PT_THREAD(turnSignal(struct pt *pt1)) {
     frontLeftHigh.update();
     frontLeftLow.update();
     frontRightHigh.update();
-    frontLeftHigh.update();
+    frontRightLow.update();
 
     rearRightBrake.update();
     rearLeftBrake.update();
