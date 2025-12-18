@@ -3,6 +3,7 @@
 #include <Wire.h>
 #include <math.h>
 
+//Set constructor with the OLED screen settings for the part
 Speedometer::Speedometer(uint8_t address)
     : _address(address), _pointX(64), _pointY(64), _pointX1(0), _pointY1(0),
       _width(128), _height(64), _reset(-1), display(nullptr) {}
@@ -14,8 +15,9 @@ void Speedometer::init() {
   display->display();
 }
 
+//Set the gauge 
 void Speedometer::buildGauge() {
-
+  //gauge bitmap
   static const uint8_t halfCircle64x32[] PROGMEM = {
       0x00, 0x00, 0x0F, 0xFF, 0xFF, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x3F, 0xFF,
       0xFF, 0xFC, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00,
@@ -41,13 +43,13 @@ void Speedometer::buildGauge() {
       0x00, 0x00, 0x00, 0x01};
   display->setTextSize(1);
   display->setTextColor(SSD1306_WHITE);
-
+  //Display meter numbers
   display->setCursor(0, 48);
   display->print("0");
-
+  
   display->setCursor(96, 48);
   display->print("255");
-
+  //Draw bitmap
   display->drawBitmap(32, 32, halfCircle64x32, 64, 32, SSD1306_WHITE);
   // display->setCursor(int16_t x, int16_t y)
 }
@@ -71,7 +73,7 @@ void Speedometer::update(float MPH) {
   display->drawLine(_pointX, _pointY, _pointX1, _pointY1, SSD1306_WHITE);
   display->display();
 }
-
+//Clear the speedometer
 void Speedometer::clear() {
   display->clearDisplay();
   display->display();

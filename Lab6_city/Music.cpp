@@ -33,7 +33,8 @@ PT_THREAD(Music::play(struct pt *pt)) {
         while (thisNote < notes * 2) {
             //Identify the divider numbers in the music Bitmap
             divider = pgm_read_word(&melody[thisNote + 1]);
-
+            
+            //Set the note duration dending on the divider
             if (divider > 0) {
                 noteDuration = wholenote / divider;
             } else {
@@ -41,16 +42,18 @@ PT_THREAD(Music::play(struct pt *pt)) {
                 noteDuration *= 1.5;
             }
 
+            //Read and set the note frequency
             int freq = pgm_read_word(&melody[thisNote]);
             if (freq != 0) {
                 tone(buzzer, freq, noteDuration * 0.9);
             }
 
+            //Nonblocking delay that uses that note duration
             timer = millis() + noteDuration;
             while (millis() < timer) {
                 PT_YIELD(pt);
             }
-
+            //Gap between notes
             noTone(buzzer);
             thisNote += 2;
         }
